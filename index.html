@@ -47,9 +47,10 @@
         </nav>
 
         <section class="pyscript">
+            <!-- <script type="py" src="main.py" config="pyscript.json"></script> -->
+            <script type="py" src="main.py"></script>
+            <!-- <script type="py" src="scoping.py"></script> -->
             <h1>Tic-Tac-Toe</h1>
-
-            <script type="py" src="./main.py" config="./pyscript.json"></script>
 
             <table id="board">
                 <tr>
@@ -71,10 +72,13 @@
             <h2 id="status"></h2>
             <button id="btn-new-game" py-click="GAME.new_game">New game</button>
             <button id="btn-toggle-terminal" py-click="GAME.toggle_terminal">Hide/show terminal</button>
+            <button id="btn-visualize" py-click="GAME.visualize">Visualize</button>
 
             <div id="terminal" hidden="hidden">
                 <script id="console" type="py" terminal></script>
             </div>
+
+            <img src="test.png" />
 
         </section>
     </body>
