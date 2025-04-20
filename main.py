@@ -1,4 +1,10 @@
 from pyweb import pydom
+from scoping.actions import VarValAction
+from scoping.core import scope
+from scoping.factset import FactSet
+from scoping.options import ScopingOptions
+from scoping.task import ScopingTask
+from scoping.visualization import TaskGraph
 
 class TicTacToe:
     def __init__(self):
@@ -8,6 +14,7 @@ class TicTacToe:
         self.init_cells()
         self.init_winning_combos()
         self.new_game(...)
+        self.scoping_task = None
 
     def set_status(self, text):
         self.status.html = text
@@ -153,5 +160,44 @@ class TicTacToe:
             self.console.parent._js.removeAttribute("hidden")
         else:
             self.console.parent._js.setAttribute("hidden", "hidden")
+    
+    def make_task(
+        self,
+        domains=FactSet(
+            {
+                "job": {0, 1},
+                "hungry": {0, 1},
+                "food": {0, 1},
+                "money": {0, 1},
+                "serves": {0, 1, 2},
+            }
+        ),
+        actions=[
+            VarValAction("a. dance", [("hungry", 0)], [("hungry", 1)], 1),
+            VarValAction("d. hunt", [("hungry", 0)], [("food", 1)], 1),
+            VarValAction("c. cook", [("food", 1), ("money", 0)], [("serves", 2)], 1),
+            VarValAction("b. gather", [("hungry", 1)], [("food", 1)], 1),
+            VarValAction("e. hire_chef", [("food", 1), ("money", 1)], [("serves", 2)], 1),
+            VarValAction("f. takeout", [("food", 0), ("money", 1)], [("serves", 2)], 1),
+            VarValAction("g. get_job", [], [("job", 1)], 1),
+            VarValAction("h. work", [("job", 1)], [("money", 1)], 1),
+            VarValAction("i. leftovers", [("food", 0)], [("serves", 1)], 1),
+        ],
+        init=[
+            ("job", 1),
+            ("hungry", 0),
+            ("food", 0),
+            ("money", 1),
+            ("serves", 0),
+        ],
+        goal=[
+            ("serves", 2),
+        ],
+    ):
+        self.scoping_task = ScopingTask(domains, init, goal, actions)
+
+    def visualize(self):
+        self.make_task()
+        TaskGraph(self.scoping_task, ScopingOptions(0, 0, 0, 0, 0)).show()
 
 GAME = TicTacToe()
