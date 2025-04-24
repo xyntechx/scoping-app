@@ -1,9 +1,7 @@
 from collections import defaultdict
 import itertools
 
-import translate.constraints
-import translate.pddl
-import translate.tools
+from translate import constraints, pddl, tools
 
 # Notes:
 # All parts of an invariant always use all non-counted variables

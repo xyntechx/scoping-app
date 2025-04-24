@@ -21,19 +21,8 @@ from collections import defaultdict
 from copy import deepcopy
 from itertools import product
 
-import translate.axiom_rules
-import translate.fact_groups
-import translate.instantiate
-import translate.normalize
-import translate.options
-import translate.pddl
-import translate.pddl_parser
-import translate.sas_tasks
+from translate import axiom_rules, fact_groups, instantiate, normalize, options, pddl, pddl_parser, sas_tasks, simplify, timers, tools, variable_order
 import signal
-import translate.simplify
-import translate.timers
-import translate.tools
-import translate.variable_order
 
 # TODO: The translator may generate trivial derived variables which are always
 # true, for example if there ia a derived predicate in the input that only
@@ -58,10 +47,10 @@ simplified_effect_condition_counter = 0
 added_implied_precondition_counter = 0
 
 
-def strips_to_sas_dictionary(groups: List[List[translate.pddl.Atom]],
+def strips_to_sas_dictionary(groups: List[List[pddl.Atom]],
         assert_partial: bool) -> Tuple[
             List[int], # domain size for each variable
-            Dict[translate.pddl.Atom, List[VarValPair]]
+            Dict[pddl.Atom, List[VarValPair]]
             # variable/value pairs representing each atom
         ]:
     dictionary = {}
@@ -75,8 +64,8 @@ def strips_to_sas_dictionary(groups: List[List[translate.pddl.Atom]],
 
 
 def translate_strips_conditions_aux(
-        conditions: List[translate.pddl.Literal],
-        dictionary: Dict[translate.pddl.Atom, List[VarValPair]],
+        conditions: List[pddl.Literal],
+        dictionary: Dict[pddl.Atom, List[VarValPair]],
         ranges: List[int]) -> Optional[List[Dict[int, int]]]:
     condition = {}
     for fact in conditions:
@@ -162,10 +151,10 @@ def translate_strips_conditions_aux(
 
 
 def translate_strips_conditions(
-        conditions: List[translate.pddl.Literal],
-        dictionary: Dict[translate.pddl.Atom, List[VarValPair]],
+        conditions: List[pddl.Literal],
+        dictionary: Dict[pddl.Atom, List[VarValPair]],
         ranges: List[int],
-        mutex_dict: Dict[translate.pddl.Atom, List[VarValPair]],
+        mutex_dict: Dict[pddl.Atom, List[VarValPair]],
         mutex_ranges: List[int]) -> Optional[List[Dict[int, int]]]:
     if not conditions:
         return [{}]  # Quick exit for common case.
@@ -445,29 +434,29 @@ def dump_task(init, goals, actions, axioms, axiom_layer_dict):
 
 def translate_task(
         # var/value pairs representing each atom
-        strips_to_sas: Dict[translate.pddl.Atom, List[VarValPair]],
+        strips_to_sas: Dict[pddl.Atom, List[VarValPair]],
         # size of variable domains
         ranges: List[int],
         # string representation of each variable value
         translation_key: List[List[str]],
         # alternative var/value pairs representing each atom in full encoding
-        mutex_dict: Dict[translate.pddl.Atom, List[VarValPair]],
+        mutex_dict: Dict[pddl.Atom, List[VarValPair]],
         # size of variable domains in full encoding
         mutex_ranges: List[int],
         # representation of all mutex groups in terms of encoding from
         # strips_to_sas (or [] if not options.use_partial_encoding)
         mutex_key: List[List[VarValPair]],
-        init: List[Union[translate.pddl.Atom, translate.pddl.Assign]],
-        goals: List[translate.pddl.Literal],
-        actions: List[translate.pddl.PropositionalAction],
-        axioms: List[translate.pddl.PropositionalAxiom],
+        init: List[Union[pddl.Atom, pddl.Assign]],
+        goals: List[pddl.Literal],
+        actions: List[pddl.PropositionalAction],
+        axioms: List[pddl.PropositionalAxiom],
         metric: bool,
-        implied_facts: Dict[VarValPair, List[VarValPair]]) -> translate.sas_tasks.SASTask:
-    with translate.timers.timing("Processing axioms", block=True):
-        axioms, axiom_layer_dict = translate.axiom_rules.handle_axioms(actions, axioms, goals,
-                                                             translate.options.layer_strategy)
+        implied_facts: Dict[VarValPair, List[VarValPair]]) -> sas_tasks.SASTask:
+    with timers.timing("Processing axioms", block=True):
+        axioms, axiom_layer_dict = axiom_rules.handle_axioms(actions, axioms, goals,
+                                                             options.layer_strategy)
 
-    if translate.options.dump_task:
+    if options.dump_task:
         # Remove init facts that don't occur in strips_to_sas: they're constant.
         nonconstant_init = filter(strips_to_sas.get, init)
         dump_task(nonconstant_init, goals, actions, axioms, axiom_layer_dict)
@@ -513,47 +502,47 @@ def translate_task(
         assert layer >= 0
         [(var, val)] = strips_to_sas[atom]
         axiom_layers[var] = layer
-    variables = translate.sas_tasks.SASVariables(ranges, axiom_layers, translation_key)
-    mutexes = [translate.sas_tasks.SASMutexGroup(group) for group in mutex_key]
-    return translate.sas_tasks.SASTask(variables, mutexes, init, goal,
+    variables = sas_tasks.SASVariables(ranges, axiom_layers, translation_key)
+    mutexes = [sas_tasks.SASMutexGroup(group) for group in mutex_key]
+    return sas_tasks.SASTask(variables, mutexes, init, goal,
                              operators, axioms, metric)
 
 
-def trivial_task(solvable: bool) -> translate.sas_tasks.SASTask:
-    variables = translate.sas_tasks.SASVariables(
+def trivial_task(solvable: bool) -> sas_tasks.SASTask:
+    variables = sas_tasks.SASVariables(
         [2], [-1], [["Atom dummy(val1)", "Atom dummy(val2)"]])
     # We create no mutexes: the only possible mutex is between
     # dummy(val1) and dummy(val2), but the preprocessor would filter
     # it out anyway since it is trivial (only involves one
     # finite-domain variable).
     mutexes = []
-    init = translate.sas_tasks.SASInit([0])
+    init = sas_tasks.SASInit([0])
     if solvable:
         goal_fact = (0, 0)
     else:
         goal_fact = (0, 1)
-    goal = translate.sas_tasks.SASGoal([goal_fact])
+    goal = sas_tasks.SASGoal([goal_fact])
     operators = []
     axioms = []
     metric = True
-    return translate.sas_tasks.SASTask(variables, mutexes, init, goal,
+    return sas_tasks.SASTask(variables, mutexes, init, goal,
                              operators, axioms, metric)
 
 
-def solvable_sas_task(msg: str) -> translate.sas_tasks.SASTask:
+def solvable_sas_task(msg: str) -> sas_tasks.SASTask:
     print("%s! Generating solvable task..." % msg)
     return trivial_task(solvable=True)
 
 
-def unsolvable_sas_task(msg: str) -> translate.sas_tasks.SASTask:
+def unsolvable_sas_task(msg: str) -> sas_tasks.SASTask:
     print("%s! Generating unsolvable task..." % msg)
     return trivial_task(solvable=False)
 
 
-def pddl_to_sas(task: translate.pddl.Task) -> translate.sas_tasks.SASTask:
-    with translate.timers.timing("Instantiating", block=True):
+def pddl_to_sas(task: pddl.Task) -> sas_tasks.SASTask:
+    with timers.timing("Instantiating", block=True):
         (relaxed_reachable, atoms, actions, goal_list, axioms,
-         reachable_action_params) = translate.instantiate.explore(task)
+         reachable_action_params) = instantiate.explore(task)
 
     if not relaxed_reachable:
         return unsolvable_sas_task("No relaxed solution")
@@ -610,30 +599,30 @@ def pddl_to_sas(task: translate.pddl.Task) -> translate.sas_tasks.SASTask:
     print("%d implied preconditions added" %
           added_implied_precondition_counter)
 
-    if translate.options.filter_unreachable_facts:
-        with translate.timers.timing("Detecting unreachable propositions", block=True):
+    if options.filter_unreachable_facts:
+        with timers.timing("Detecting unreachable propositions", block=True):
             try:
-                translate.simplify.filter_unreachable_propositions(sas_task)
-            except translate.simplify.Impossible:
+                simplify.filter_unreachable_propositions(sas_task)
+            except simplify.Impossible:
                 return unsolvable_sas_task("Simplified to trivially false goal")
-            except translate.simplify.TriviallySolvable:
+            except simplify.TriviallySolvable:
                 return solvable_sas_task("Simplified to empty goal")
 
-    if translate.options.reorder_variables or translate.options.filter_unimportant_vars:
-        with translate.timers.timing("Reordering and filtering variables", block=True):
-            translate.variable_order.find_and_apply_variable_order(
-                sas_task, translate.options.reorder_variables,
-                translate.options.filter_unimportant_vars)
+    if options.reorder_variables or options.filter_unimportant_vars:
+        with timers.timing("Reordering and filtering variables", block=True):
+            variable_order.find_and_apply_variable_order(
+                sas_task, options.reorder_variables,
+                options.filter_unimportant_vars)
 
     sas_task._sort_all()
     return sas_task
 
 
 def build_mutex_key(
-    strips_to_sas: Dict[translate.pddl.Atom, List[VarValPair]],
-    groups: List[List[translate.pddl.Atom]],
+    strips_to_sas: Dict[pddl.Atom, List[VarValPair]],
+    groups: List[List[pddl.Atom]],
 ):
-    assert translate.options.use_partial_encoding
+    assert options.use_partial_encoding
     group_keys = []
     for group in groups:
         group_key = []
@@ -646,9 +635,9 @@ def build_mutex_key(
 
 
 def build_implied_facts(
-    strips_to_sas: Dict[translate.pddl.Atom, List[VarValPair]],
-    groups: List[List[translate.pddl.Atom]],
-    mutex_groups: List[List[translate.pddl.Atom]],
+    strips_to_sas: Dict[pddl.Atom, List[VarValPair]],
+    groups: List[List[pddl.Atom]],
+    mutex_groups: List[List[pddl.Atom]],
 ):
     ## Compute a dictionary mapping facts (FDR pairs) to lists of FDR
     ## pairs implied by that fact. In other words, in all states

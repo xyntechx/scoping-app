@@ -1,86 +1,28 @@
-<!doctype html>
-
+<!DOCTYPE html>
 <html>
     <head>
-        <!-- Recommended meta tags -->
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width,initial-scale=1.0">
-
-        <!-- PyScript CSS -->
-        <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css">
-        <!-- CSS for examples -->
-        <link rel="stylesheet" href="./assets/css/examples.css" />
-
-        <!-- This script tag bootstraps PyScript -->
-        <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
-
-        <!-- Custom CSS -->
-        <link href="https://fonts.googleapis.com/css?family=Indie+Flower" rel="stylesheet">
-        <link rel="stylesheet" href="./assets/css/tictactoe.css" />
-
-        <!-- for splashscreen -->
-        <style>
-            #loading { outline: none; border: none; background: transparent }
-        </style>
-        <script type="module">
-            const loading = document.getElementById('loading');
-            addEventListener('py:ready', () => loading.close());
-            loading.showModal();
-        </script>
-
-        <title>Tic Tac Toe</title>
-        <link rel="icon" type="image/png" href="./assets/favicon.png" />
+        <meta charset="utf-8" />
+        <script type="text/javascript" src="brython.js"></script>
+        <script type="text/javascript" src="brython_stdlib.js"></script>
     </head>
 
-    <body>
-        <dialog id="loading">
-            <h1>Loading...</h1>
-        </dialog>
+    <body onload="brython(1)">
+        <script type="text/python">
+            import main
+            main.main()
+            main.visualize()
+        </script>
 
-        <nav class="navbar" style="background-color: #000000">
-            <div class="app-header">
-                <a href="/">
-                    <img src="./assets/logo.png" class="logo" />
-                </a>
-                <a class="title" href="" style="color: #f0ab3c">Tic Tac Toe</a>
-            </div>
-        </nav>
+        <input type="file" id="upload_file" />
 
-        <section class="pyscript">
-            <!-- <script type="py" src="main.py" config="pyscript.json"></script> -->
-            <script type="py" src="main.py"></script>
-            <!-- <script type="py" src="scoping.py"></script> -->
-            <h1>Tic-Tac-Toe</h1>
+        <!-- Text content of buttons change onclick -->
+        <button id="enable_causal_links">Disable Causal Links</button>
+        <button id="enable_merging">Disable Merging</button>
+        <button id="enable_fact_based">Disable Fact-based</button>
+        <button id="enable_forward_pass">Disable Forward Pass</button>
+        <button id="enable_loop">Disable Loop</button>
 
-            <table id="board">
-                <tr>
-                    <td><div id="cell00" data-x="0" data-y="0" class="cell" py-click="GAME.click"></div></td>
-                    <td><div id="cell01" data-x="0" data-y="1" class="cell" py-click="GAME.click"></div></td>
-                    <td><div id="cell02" data-x="0" data-y="2" class="cell" py-click="GAME.click"></div></td>
-                <tr>
-                    <td><div id="cell10" data-x="1" data-y="0" class="cell" py-click="GAME.click"></div></td>
-                    <td><div id="cell11" data-x="1" data-y="1" class="cell" py-click="GAME.click"></div></td>
-                    <td><div id="cell12" data-x="1" data-y="2" class="cell" py-click="GAME.click"></div></td>
-                </tr>
-                <tr>
-                    <td><div id="cell20" data-x="2" data-y="0" class="cell" py-click="GAME.click"></div></td>
-                    <td><div id="cell21" data-x="2" data-y="1" class="cell" py-click="GAME.click"></div></td>
-                    <td><div id="cell22" data-x="2" data-y="2" class="cell" py-click="GAME.click"></div></td>
-                </tr>
-            </table>
-
-            <h2 id="status"></h2>
-            <button id="btn-new-game" py-click="GAME.new_game">New game</button>
-            <button id="btn-toggle-terminal" py-click="GAME.toggle_terminal">Hide/show terminal</button>
-            <button id="btn-visualize" py-click="GAME.visualize">Visualize</button>
-
-            <div id="terminal" hidden="hidden">
-                <script id="console" type="py" terminal></script>
-            </div>
-
-            <img src="test.png" />
-
-        </section>
+        <a id="download_file" href="#" download class="anchor-as-button">Download</a>
+        <textarea id="sas_content" rows="20" cols="60" autocomplete="off"></textarea>
     </body>
-
 </html>

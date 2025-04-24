@@ -1,8 +1,7 @@
 import contextlib
 import sys
 
-import translate.graph
-import translate.pddl
+from translate import graph, pddl
 from .parse_error import ParseError
 
 TYPED_LIST_SEPARATOR = "-"

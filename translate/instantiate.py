@@ -4,10 +4,7 @@
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-import translate.build_model
-import translate.pddl_to_prolog
-import translate.pddl
-import translate.timers
+from translate import build_model, pddl_to_prolog, pddl, timers
 
 def get_fluent_facts(task, model):
     fluent_predicates = set()
@@ -47,26 +44,26 @@ def instantiate_goal(goal, init_facts, fluent_facts):
     result = []
     try:
         goal.instantiate({}, init_facts, fluent_facts, result)
-    except translate.pddl.conditions.Impossible:
+    except pddl.conditions.Impossible:
         return None
     return result
 
 # The input task must have been normalized
 # The model has been computed by build_model.compute_model
-def instantiate(task: translate.pddl.Task, model: Any) -> Tuple[
+def instantiate(task: pddl.Task, model: Any) -> Tuple[
              bool, # relaxed_reachable
-             Set[translate.pddl.Literal], # fluent_facts (ground)
-             List[translate.pddl.PropositionalAction], # instantiated_actions
-             Optional[List[translate.pddl.Literal]], # instantiated_goal
-             List[translate.pddl.PropositionalAxiom], # instantiated_axioms
-             Dict[translate.pddl.Action, List[str]] # reachable_action_parameters
+             Set[pddl.Literal], # fluent_facts (ground)
+             List[pddl.PropositionalAction], # instantiated_actions
+             Optional[List[pddl.Literal]], # instantiated_goal
+             List[pddl.PropositionalAxiom], # instantiated_axioms
+             Dict[pddl.Action, List[str]] # reachable_action_parameters
             ]:
     relaxed_reachable = False
     fluent_facts = get_fluent_facts(task, model)
     init_facts = set()
     init_assignments = {}
     for element in task.init:
-        if isinstance(element, translate.pddl.Assign):
+        if isinstance(element, pddl.Assign):
             init_assignments[element.fluent] = element.expression
         else:
             init_facts.add(element)

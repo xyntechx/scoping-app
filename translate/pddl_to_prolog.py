@@ -3,9 +3,7 @@
 
 import itertools
 
-import translate.normalize
-import translate.pddl
-import translate.timers
+from translate import normalize, pddl, timers
 
 class PrologProgram:
     def __init__(self):

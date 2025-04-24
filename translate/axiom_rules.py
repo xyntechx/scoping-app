@@ -1,6 +1,4 @@
-import translate.pddl
-import translate.sccs
-import translate.timers
+from translate import pddl, sccs, timers
 
 from collections import defaultdict
 from itertools import chain

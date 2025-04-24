@@ -26,7 +26,7 @@ filter_unreachable_propositions.)
 from collections import defaultdict
 from itertools import count
 
-import translate.sas_tasks
+from translate import sas_tasks
 
 DEBUG = False
 

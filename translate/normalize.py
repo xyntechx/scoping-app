@@ -3,7 +3,7 @@
 import copy
 from typing import Sequence
 
-import translate.pddl
+from translate import pddl
 
 class ConditionProxy:
     def clone_owner(self):
@@ -119,19 +119,19 @@ class GoalConditionProxy(ConditionProxy):
 def get_action_predicate(action):
     name = action
     variables = [par.name for par in action.parameters]
-    if isinstance(action.precondition, translate.pddl.ExistentialCondition):
+    if isinstance(action.precondition, pddl.ExistentialCondition):
         variables += [par.name for par in action.precondition.parameters]
-    return translate.pddl.Atom(name, variables)
+    return pddl.Atom(name, variables)
 
 def get_axiom_predicate(axiom):
     name = axiom
     variables = [par.name for par in axiom.parameters]
-    if isinstance(axiom.condition, translate.pddl.ExistentialCondition):
+    if isinstance(axiom.condition, pddl.ExistentialCondition):
         variables += [par.name for par in axiom.condition.parameters]
-    return translate.pddl.Atom(name, variables)
+    return pddl.Atom(name, variables)
 
-def get_pne_definition_predicate(pne: translate.pddl.PrimitiveNumericExpression):
-    return translate.pddl.Atom(f"@def-{pne.symbol}", pne.args)
+def get_pne_definition_predicate(pne: pddl.PrimitiveNumericExpression):
+    return pddl.Atom(f"@def-{pne.symbol}", pne.args)
 
 def all_conditions(task):
     for action in task.actions:
@@ -382,9 +382,9 @@ def build_exploration_rules(task):
         proxy.build_rules(result)
     return result
 
-def condition_to_rule_body(parameters: Sequence[translate.pddl.TypedObject],
-                           condition: translate.pddl.conditions.Condition,
-                           pne: translate.pddl.PrimitiveNumericExpression = None):
+def condition_to_rule_body(parameters: Sequence[pddl.TypedObject],
+                           condition: pddl.conditions.Condition,
+                           pne: pddl.PrimitiveNumericExpression = None):
     """The rule body requires that
        - all parameters (including existentially quantified variables in the
          condition) are instantiated with objecst of the right type,

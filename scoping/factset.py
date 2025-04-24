@@ -1,4 +1,3 @@
-from __future__ import annotations
 from collections import defaultdict
 from typing import Any, Iterable, Optional, overload, Tuple, Union
 
@@ -10,7 +9,7 @@ class FactSet:
 
     def __init__(
         self,
-        facts: Union[FactSet, dict[Any, set[Any]], Iterable[VarValPair], None] = None,
+        facts = None,
     ) -> None:
         self.facts = defaultdict(set)
         if facts is None:
@@ -26,7 +25,7 @@ class FactSet:
     def __getitem__(self, key: Any) -> set[Any]:
         return self.facts[key]
 
-    def __eq__(self, other: Optional[FactSet]) -> bool:
+    def __eq__(self, other) -> bool:
         if other is None:
             return False
         return self.facts == other.facts
@@ -64,12 +63,12 @@ class FactSet:
             self.facts[var].add(val)
 
     @overload
-    def union(self, other_facts: FactSet | dict) -> None: ...
+    def union(self, other_facts) -> None: ...
     @overload
     def union(self, var: Any, values: set[Any]) -> None: ...
     def union(
         self,
-        other_facts_or_var: Union[FactSet, Any],
+        other_facts_or_var,
         values: Optional[set[Any]] = None,
     ) -> None:
         """Take the in-place union of the FactSet with the specified additional facts"""
@@ -83,7 +82,7 @@ class FactSet:
             var = other_facts_or_var
             self.facts[var] = self.facts[var].union(values)
 
-    def __contains__(self, item: VarValPair | FactSet) -> bool:
+    def __contains__(self, item) -> bool:
         """Check if a (var, val) pair is an element of the FactSet, or if another
         FactSet is a subset of this one"""
         if isinstance(item, FactSet):

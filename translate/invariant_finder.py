@@ -7,10 +7,7 @@ import random
 import time
 from typing import List
 
-import translate.invariants
-import translate.options
-import translate.pddl
-import translate.timers
+from translate import invariants, options, pddl, timers
 
 class BalanceChecker:
     def __init__(self, task, reachable_action_params):
@@ -142,10 +139,10 @@ def useful_groups(invariants, initial_facts):
         yield [part.instantiate(parameters) for part in sorted(invariant.parts)]
 
 # returns a list of mutex groups (parameters instantiated, counted variables not)
-def get_groups(task, reachable_action_params=None) -> List[List[translate.pddl.Atom]]:
-    with translate.timers.timing("Finding invariants", block=True):
+def get_groups(task, reachable_action_params=None) -> List[List[pddl.Atom]]:
+    with timers.timing("Finding invariants", block=True):
         invariants = list(find_invariants(task, reachable_action_params))
-    with translate.timers.timing("Checking invariant weight"):
+    with timers.timing("Checking invariant weight"):
         result = list(useful_groups(invariants, task.init))
     return result
 

@@ -1,7 +1,4 @@
-import translate.invariant_finder
-import translate.options
-import translate.pddl
-import translate.timers
+from translate import invariant_finder, options, pddl, timers
 from typing import Dict, List, Set, Tuple
 
 
@@ -110,19 +107,19 @@ def collect_all_mutex_groups(groups, atoms):
 def sort_groups(groups):
     return sorted(sorted(group) for group in groups)
 
-def compute_groups(task: translate.pddl.Task, atoms: Set[translate.pddl.Literal],
-    reachable_action_params: Dict[translate.pddl.Action, List[str]],
-    negative_in_goal: Set[translate.pddl.Atom]) -> Tuple[
-        List[List[translate.pddl.Atom]], # groups
+def compute_groups(task: pddl.Task, atoms: Set[pddl.Literal],
+    reachable_action_params: Dict[pddl.Action, List[str]],
+    negative_in_goal: Set[pddl.Atom]) -> Tuple[
+        List[List[pddl.Atom]], # groups
         # -> all selected mutex groups plus singleton groups for uncovered facts
-        List[List[translate.pddl.Atom]], # mutex_groups
+        List[List[pddl.Atom]], # mutex_groups
         # -> all found mutex groups plus singleton groups for uncovered facts
         List[List[str]], # translation_key
         # -> string representations of group atoms (plus one for "other value")
         ]:
-    groups = translate.invariant_finder.get_groups(task, reachable_action_params)
+    groups = invariant_finder.get_groups(task, reachable_action_params)
 
-    with translate.timers.timing("Instantiating groups"):
+    with timers.timing("Instantiating groups"):
         groups = instantiate_groups(groups, task, atoms)
 
     # Sort here already to get deterministic mutex groups.

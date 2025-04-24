@@ -1,22 +1,35 @@
-from dataclasses import dataclass, field
+from dataclasses import field
 
 import translate.sas_tasks as fd
 from scoping.actions import VarValAction
 from scoping.factset import FactSet, VarValPair
 
 
-@dataclass
-class ScopingTask:
-    domains: FactSet
-    init: list[VarValPair]
-    goal: list[VarValPair]
-    actions: list[VarValAction]
-    mutexes: list[list[VarValPair]] = field(default_factory=list)
-    axioms: list[VarValAction] = field(default_factory=list)
-    metric: bool = False
-    value_names: dict[int, list[str]] = field(default_factory=dict)
+from collections import defaultdict
 
-    def from_sas(sas_task: fd.SASTask) -> "ScopingTask":
+class ScopingTask:
+    def __init__(
+        self,
+        domains,
+        init,
+        goal,
+        actions,
+        mutexes=None,
+        axioms=None,
+        metric=False,
+        value_names=None
+    ):
+        self.domains = domains
+        self.init = init
+        self.goal = goal
+        self.actions = actions
+        self.mutexes = mutexes if mutexes is not None else []
+        self.axioms = axioms if axioms is not None else []
+        self.metric = metric
+        self.value_names = value_names if value_names is not None else {}
+
+    @staticmethod
+    def from_sas(sas_task):
         domains = FactSet(
             {i: set(range(r)) for i, r in enumerate(sas_task.variables.ranges)}
         )
@@ -41,7 +54,7 @@ class ScopingTask:
             value_names=value_names,
         )
 
-    def to_sas(self) -> fd.SASTask:
+    def to_sas(self):
         sorted_vars = sorted(self.domains.variables)
         var_index = {var: i for i, var in enumerate(sorted_vars)}
         sorted_vals = {var: sorted(vals) for var, vals in self.domains}
@@ -107,19 +120,19 @@ class ScopingTask:
                 if ax.effect
             ]
         )
-        metric = self.metric
-        sas_task = fd.SASTask(
+        return fd.SASTask(
             variables=variables,
             mutexes=mutexes,
             init=init,
             goal=goal,
             operators=operators,
             axioms=axioms,
-            metric=metric,
+            metric=self.metric,
         )
-        return sas_task
 
-    def __eq__(self, other: "ScopingTask") -> bool:
+    def __eq__(self, other):
+        if not isinstance(other, ScopingTask):
+            return NotImplemented
         if self.domains != other.domains:
             return False
         if sorted(self.init) != sorted(other.init):
@@ -139,9 +152,7 @@ class ScopingTask:
             if sorted(a) != sorted(b):
                 return False
         for a, b in zip(self.value_names.keys(), other.value_names.keys()):
-            if a != b:
-                return False
-            if self.value_names[a] != other.value_names[a]:
+            if a != b or self.value_names[a] != other.value_names[a]:
                 return False
         return True
 

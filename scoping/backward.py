@@ -157,7 +157,7 @@ def compute_goal_relevance(
 # %%
 if __name__ == "main":
     import options
-    import translate.pddl_parser
+    from translate import pddl_parser
     from scoping.sas_parser import SasParser
     from translate import pddl_to_sas
 
@@ -173,7 +173,7 @@ if __name__ == "main":
     options.keep_unimportant_variables = True
     options.keep_unreachable_facts = True
     options.sas_file = True
-    task = translate.pddl_parser.open(domain_filename, task_filename)
+    task = pddl_parser.open(domain_filename, task_filename)
     sas_task: SASTask = pddl_to_sas(task)
 
     # %%
