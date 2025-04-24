@@ -16,9 +16,11 @@ ENABLE_MERGING = document["enable_merging"]
 ENABLE_FACT_BASED = document["enable_fact_based"]
 ENABLE_FORWARD_PASS = document["enable_forward_pass"]
 ENABLE_LOOP = document["enable_loop"]
+VISUALIZE = document["visualize"]
 
 # Objects
 sas_parser = SasParser(s_sas="")
+sas_task_wrapper = [None]
 scoping_options = ScopingOptions()
 
 
@@ -27,45 +29,13 @@ def main():
     set_toggle_content(ENABLE_MERGING, scoping_options.enable_merging)
 
 
-def visualize():
+def visualize(sas_task):
     document <= "tis is visualize()"
 
-    # def make_task(
-    #     domains=FactSet(
-    #         {
-    #             "job": {0, 1},
-    #             "hungry": {0, 1},
-    #             "food": {0, 1},
-    #             "money": {0, 1},
-    #             "serves": {0, 1, 2},
-    #         }
-    #     ),
-    #     actions=[
-    #         VarValAction("a. dance", [("hungry", 0)], [("hungry", 1)], 1),
-    #         VarValAction("d. hunt", [("hungry", 0)], [("food", 1)], 1),
-    #         VarValAction("c. cook", [("food", 1), ("money", 0)], [("serves", 2)], 1),
-    #         VarValAction("b. gather", [("hungry", 1)], [("food", 1)], 1),
-    #         VarValAction("e. hire_chef", [("food", 1), ("money", 1)], [("serves", 2)], 1),
-    #         VarValAction("f. takeout", [("food", 0), ("money", 1)], [("serves", 2)], 1),
-    #         VarValAction("g. get_job", [], [("job", 1)], 1),
-    #         VarValAction("h. work", [("job", 1)], [("money", 1)], 1),
-    #         VarValAction("i. leftovers", [("food", 0)], [("serves", 1)], 1),
-    #     ],
-    #     init=[
-    #         ("job", 1),
-    #         ("hungry", 0),
-    #         ("food", 0),
-    #         ("money", 1),
-    #         ("serves", 0),
-    #     ],
-    #     goal=[
-    #         ("serves", 2),
-    #     ],
-    # ):
-    #     return ScopingTask(domains, init, goal, actions)
+    scoping_task = ScopingTask.from_sas(sas_task)
+    scoped_task = scope(scoping_task, scoping_options)
+    scoped_task.dump()
 
-    # scoping_task = make_task()
-    # scoped_task = scope(scoping_task, ScopingOptions(0, 0, 0, 0, 0))
     document <= "tis is visualize() make task"
 
 
@@ -81,14 +51,12 @@ def file_read(ev):
         DOWNLOAD_BTN.style.display = "inline"
         DOWNLOAD_BTN.attrs["download"] = file.name
 
-        sas_task = read_sas(event.target.result)
+        sas_task_wrapper[0] = read_sas(event.target.result)
 
+        VISUALIZE.disabled = False
 
-    # Get the selected file as a DOM File object
     file = UPLOAD_BTN.files[0]
-    # Create a new DOM FileReader instance
     reader = window.FileReader.new()
-    # Read the file content as text
     reader.readAsText(file)
     reader.bind("load", onload)
 
@@ -140,6 +108,11 @@ def toggle_forward_pass(ev):
 def toggle_loop(ev):
     scoping_options.enable_loop = not scoping_options.enable_loop
     set_toggle_content(ENABLE_LOOP, scoping_options.enable_loop)
+
+
+@bind(VISUALIZE, "click")
+def run_visualize(ev):
+    visualize(sas_task_wrapper[0])
 
 
 def set_toggle_content(btn, flag):

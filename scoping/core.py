@@ -208,12 +208,16 @@ def scope_sas_task(
 
 
 def scope_sas_file(
-    sas_path: str,
     scoping_options: ScopingOptions,
+    sas_path: str = None,
+    sas_task = None
 ):
-    parser = SasParser(pth=sas_path)
-    parser.parse()
-    sas_task: fd.SASTask = parser.to_fd()
+    # We can provide the sas_task directly as an arg, or pass the sas_path str (this latter case enters the if block)
+    if sas_path:
+        parser = SasParser(pth=sas_path)
+        parser.parse()
+        sas_task: fd.SASTask = parser.to_fd()
+
     scoped_sas, info = scope_sas_task(sas_task, scoping_options)
     for key, val in sorted(info.items()):
         print(f"{key}: {val}")
@@ -255,7 +259,7 @@ def main():
         enable_forward_pass=args.enable_forward_pass,
         enable_loop=args.enable_loop,
     )
-    scope_sas_file(args.sas_file, scoping_options)
+    scope_sas_file(scoping_options, sas_path=args.sas_file)
 
 
 if __name__ == "__main__":
