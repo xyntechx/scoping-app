@@ -1,7 +1,5 @@
 import math
 
-import iceberg as ice
-
 from scoping.task import ScopingTask, VarValPair, VarValAction
 from scoping.options import ScopingOptions
 from scoping.backward import goal_relevance_step, coarsen_facts_to_variables
@@ -107,49 +105,6 @@ class Node:
         )
 
 
-class DrawableNode(ice.DrawableWithChild):
-    node: Node
-
-    def __init__(self, node: Node):
-        self.init_from_fields(node=node)
-
-    def setup(self):
-        name_size = 24 if self.node.is_star else 12
-        name_text = ice.Text(
-            self.node.name, ice.FontStyle(family="Andale Mono", size=name_size)
-        )
-        pre_text = ice.Text(
-            "\n".join([str(fact) for fact in self.node.precondition]),
-            ice.FontStyle(family="Andale Mono", size=12),
-        )
-        eff_text = ice.Text(
-            "\n".join([str(fact) for fact in self.node.effect]),
-            ice.FontStyle(family="Andale Mono", size=12),
-        )
-
-        def width(text: ice.Text):
-            return text.bounds.right
-
-        max_width = max([width(t) for t in [name_text, pre_text, eff_text]])
-        midrule = ice.Line(
-            (0, 0), (max_width, 0), ice.PathStyle(ice.Colors.BLACK, 1)
-        ).pad((5, 0))
-
-        texts = [name_text]
-        if not self.node.is_init and not self.node.is_star:
-            texts += [midrule, pre_text]
-        if not self.node.is_goal and not self.node.is_star:
-            texts += [midrule, eff_text]
-        text = ice.Arrange(texts, arrange_direction=ice.VERTICAL, gap=5).pad(
-            (0, 0, 0, 5)
-        )
-        rectangle = ice.Rectangle(
-            text.bounds, border_color=ice.Colors.BLACK, border_radius=5
-        )
-
-        self.set_child(rectangle + text)
-
-
 def get_scoping_layers(task: ScopingTask, options: ScopingOptions):
     fact_layers: list[FactSet] = []
     actions_layers: list[list[VarValAction]] = []
@@ -218,24 +173,13 @@ def build_action_node(
     return Node(action.name, action.precondition, action.effect, successors)
 
 
-class TaskGraph(ice.DrawableWithChild):
-    task: ScopingTask
-    options: ScopingOptions
-    XSCALE: float = 2
-    YSCALE: float = 3
-    EDGE_THICKNESS: float = 0.5
-
+class TaskGraph():
     def __init__(
         self,
         task: ScopingTask,
-        options: ScopingOptions,
-        XSCALE: float = 2,
-        YSCALE: float = 3,
-        EDGE_THICKNESS: float = 0.5,
+        options: ScopingOptions
     ):
-        self.XSCALE = XSCALE
-        self.YSCALE = YSCALE
-        self.EDGE_THICKNESS = EDGE_THICKNESS
+        self.layers = []
         forward = options.enable_forward_pass
         variables = not options.enable_fact_based
         nodes = []
@@ -251,6 +195,7 @@ class TaskGraph(ice.DrawableWithChild):
         if forward:
             prev_layer.append(star_node)
             nodes.append(star_node)
+        self.layers.append(prev_layer)
         for fact_layer, action_layer in get_scoping_layers(task, options):
             child_layer = []
             for action in action_layer:
@@ -261,6 +206,7 @@ class TaskGraph(ice.DrawableWithChild):
                     action_node.parents.append(star_node)
                 nodes.append(action_node)
                 child_layer.append(action_node)
+            self.layers.append(child_layer)
             prev_layer = child_layer
 
         nodes.append(final_node)
@@ -291,94 +237,3 @@ class TaskGraph(ice.DrawableWithChild):
         self.other_nodes = [
             to_node(a) for a in task.actions if a.name not in node_names
         ]
-        self.init_from_fields(task=task, options=options)
-
-    def setup(self):
-        import pygraphviz as pgv
-
-        G = pgv.AGraph(strict=False, directed=True, ranksep=0.5)
-        node_map = {}
-
-        # Convert program graph to pygraphviz.
-        def add_node(node: Node):
-            node_map[id(node)] = node
-            G.add_node(
-                str(id(node)),
-                label=node.name,
-                shape="box",
-                width=0.1,
-                height=0.1,
-                margin=0.1,
-            )
-            for child in node.children:
-                source = str(id(node))
-                target = str(id(child))
-                if not G.has_edge(source, target):
-                    G.add_edge(source, target)
-                add_node(child)
-
-        for root in self.roots:
-            add_node(root)
-        G.layout("dot")
-
-        draw_node_objects = []
-        draw_edge_objects = []
-        draw_node_map: dict[str, ice.Drawable] = {}
-
-        flipx = -1 if self.options.enable_forward_pass else 1
-        for node in G.nodes():
-            draw_node = DrawableNode(node_map[int(node)])
-            x, y = (float(_) for _ in G.get_node(node).attr["pos"].split(","))
-            x, y = y, x  # flip x & y so that graph displays horizontally
-            draw_node = draw_node.move_to(
-                self.XSCALE * x * flipx, self.YSCALE * y, ice.CENTER
-            )
-            draw_node_objects.append(draw_node)
-            draw_node_map[node] = draw_node
-
-        for edge in G.edges():
-            # Extract the end points of the edge.
-            start_node = draw_node_map[edge[0]]
-            end_node = draw_node_map[edge[1]]
-            if self.options.enable_forward_pass:
-                start, end = ice.Corner.MIDDLE_RIGHT, ice.Corner.MIDDLE_LEFT
-            else:
-                start, end = ice.Corner.MIDDLE_LEFT, ice.Corner.MIDDLE_RIGHT
-            start_x, start_y = start_node.bounds.corners[start]
-            end_x, end_y = end_node.bounds.corners[end]
-            draw_edge = ice.Arrow(
-                start=(start_x, start_y),
-                end=(end_x, end_y),
-                line_path_style=ice.PathStyle(
-                    color=ice.Colors.BLACK, thickness=self.EDGE_THICKNESS
-                ),
-                head_length=5,
-                angle=20,
-                arrow_head_style=ice.ArrowHeadStyle.FILLED_TRIANGLE,
-            )
-
-            draw_edge_objects.append(draw_edge)
-
-        scene = ice.Compose(draw_node_objects)
-        scene += ice.Compose(draw_edge_objects)
-
-        if self.other_nodes:
-            floating_nodes = ice.Arrange(
-                [DrawableNode(node) for node in self.other_nodes],
-                arrange_direction=ice.Arrange.Direction.VERTICAL,
-                gap=10,
-            ).pad(10)
-            scene = ice.Arrange(
-                floating_nodes,
-                scene,
-                arrange_direction=ice.Arrange.Direction.HORIZONTAL,
-                gap=30,
-            )
-
-        scene = scene.pad(10).background(ice.WHITE).scale(1.5)
-        self.set_child(scene)
-    
-    def show(self):
-        canvas = ice.Blank(ice.Bounds(size=(1080, 720)))
-        scene = canvas.add_centered(self)
-        scene.render("test.png")

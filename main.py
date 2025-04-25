@@ -1,11 +1,9 @@
-from browser import bind, window, document
+from browser import bind, window, document, html
 
-from scoping.actions import VarValAction
-from scoping.factset import FactSet
 from scoping.options import ScopingOptions
 from scoping.task import ScopingTask
-from scoping.core import scope
 from scoping.sas_parser import SasParser
+from scoping.visualization import TaskGraph
 
 
 # DOM elements
@@ -17,30 +15,76 @@ ENABLE_FACT_BASED = document["enable_fact_based"]
 ENABLE_FORWARD_PASS = document["enable_forward_pass"]
 ENABLE_LOOP = document["enable_loop"]
 VISUALIZE = document["visualize"]
+VISUALIZE_BACK = document["visualize_back"]
+GRAPH_CONTAINER = document["graph_container"]
 
 # Objects
 sas_parser = SasParser(s_sas="")
 sas_task_wrapper = [None]
-scoping_options = ScopingOptions()
+scoping_options = ScopingOptions(enable_forward_pass=False, enable_loop=False)
+layer_count = 0
+visible_layers = 1
 
 
 def main():
-    document <= "this is main()"
     set_toggle_content(ENABLE_MERGING, scoping_options.enable_merging)
 
 
-def visualize(sas_task):
-    document <= "tis is visualize()"
+def visualize(sas_task, step_back=False):
+    global layer_count
+    global visible_layers
+
+    if layer_count > 0 and visible_layers >= layer_count:
+        return
+
+    for i in range(min(visible_layers - 1, layer_count)):
+        # Clear container if it contains subcontainers
+        del document[f"graph_subcontainer_{i}"]
+
+    if step_back:
+        visible_layers -= 2
 
     scoping_task = ScopingTask.from_sas(sas_task)
-    scoped_task = scope(scoping_task, scoping_options)
-    scoped_task.dump()
+    graph = TaskGraph(scoping_task, scoping_options)
+    layer_count = len(graph.layers)
 
-    document <= "tis is visualize() make task"
+    for i in range(min(visible_layers, layer_count)):
+        layer = graph.layers[i]
+        if layer:
+            draw_subcontainer(i)
+        for node in layer:
+            draw_node(i, node)
+
+    visible_layers += 1
+
+
+def draw_subcontainer(idx):
+    GRAPH_CONTAINER <= html.DIV(id=f"graph_subcontainer_{idx}", style={"display": "flex", "align-items": "center", "justify-content": "center", "flex-direction": "column", "row-gap": "1rem", "margin": "0", "padding": "0"})
+
+
+def draw_node(idx, op):
+    name = html.P(op.name, style={"font-weight": "bold", "margin": "0"})
+    op_div = html.DIV(id=f"op {name}", style={"display": "flex", "align-items": "center", "justify-content": "center", "flex-direction": "column", "gap": "0", "border": "1px solid black", "border-radius": "1rem", "padding": "1rem", "min-width": "100px", "margin": "0"})
+
+    op_div <= name
+    op_div <= html.HR(style={"width": "100%"})
+    if not op.precondition:
+        op_div <= html.BR()
+    for precond in op.precondition:
+        op_div <= html.P(f"('{precond[0]}', {precond[1]})", style={"margin": "0"})
+    if op.effect:
+        op_div <= html.HR(style={"width": "100%"})
+    for eff in op.effect:
+        op_div <= html.P(f"('{eff[0]}', {eff[1]})", style={"margin": "0"})
+
+    SUBCONTAINER = document[f"graph_subcontainer_{idx}"]
+    SUBCONTAINER <= op_div
 
 
 @bind(UPLOAD_BTN, "input")
 def file_read(ev):
+    global layer_count
+
     def onload(event):
         """Triggered when file is read. The FileReader instance is
         event.target.
@@ -66,7 +110,6 @@ def read_sas(sas_file):
     sas_parser.s_sas = sas_file
     sas_parser.parse()
     sas_task = sas_parser.to_fd()
-    # sas_task.dump()
     return sas_task
 
 
@@ -76,7 +119,6 @@ def mousedown(ev):
     Cf. https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URIs
     """
     content = window.encodeURIComponent(document['sas_content'].value)
-    # set attribute "href" of save link
     DOWNLOAD_BTN.attrs["href"] = "data:text/plain," + content
 
 
@@ -113,6 +155,17 @@ def toggle_loop(ev):
 @bind(VISUALIZE, "click")
 def run_visualize(ev):
     visualize(sas_task_wrapper[0])
+    if VISUALIZE.textContent == "Visualize":
+        # so that this runs only once
+        VISUALIZE.textContent = ">"
+        VISUALIZE_BACK.textContent = "<"
+        VISUALIZE_BACK.hidden = False
+        VISUALIZE_BACK.disabled = False
+
+
+@bind(VISUALIZE_BACK, "click")
+def run_visualize_backwards(ev):
+    visualize(sas_task_wrapper[0], step_back=True)
 
 
 def set_toggle_content(btn, flag):

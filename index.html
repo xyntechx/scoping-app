@@ -6,24 +6,70 @@
         <script type="text/javascript" src="brython_stdlib.js"></script>
     </head>
 
-    <body onload="brython(1)">
+    <body
+        onload="brython(1)"
+        style="
+            width: 100vw;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            flex-direction: column;
+            row-gap: 1rem;
+            padding: 1rem;
+            overflow-x: hidden;
+        "
+    >
         <script type="text/python">
             import main
             main.main()
         </script>
 
-        <input type="file" id="upload_file" />
+        <div
+            style="
+                width: 100%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-direction: row;
+                column-gap: 0.5rem;
+            "
+        >
+            <input type="file" id="upload_file" />
 
-        <!-- Text content of buttons change onclick -->
-        <button id="enable_causal_links">Disable Causal Links</button>
-        <button id="enable_merging">Disable Merging</button>
-        <button id="enable_fact_based">Disable Fact-based</button>
-        <button id="enable_forward_pass">Disable Forward Pass</button>
-        <button id="enable_loop">Disable Loop</button>
+            <!-- Text content of buttons change onclick -->
+            <button id="enable_causal_links">Disable Causal Links</button>
+            <button id="enable_merging">Disable Merging</button>
+            <button id="enable_fact_based">Disable Fact-based</button>
+            <button id="enable_forward_pass">Enable Forward Pass</button>
+            <button id="enable_loop">Enable Loop</button>
 
-        <button id="visualize" disabled>Visualize</button>
+            <button id="visualize_back" disabled hidden></button>
+            <button id="visualize" disabled>Visualize</button>
 
-        <a id="download_file" href="#" download class="anchor-as-button">Download</a>
-        <textarea id="sas_content" rows="20" cols="60" autocomplete="off"></textarea>
+            <a id="download_file" href="#" download class="anchor-as-button"
+                >Download</a
+            >
+        </div>
+        <textarea
+            id="sas_content"
+            rows="20"
+            cols="60"
+            autocomplete="off"
+        ></textarea>
+
+        <section
+            id="graph_container"
+            style="
+                width: 100%;
+                display: flex;
+                align-items: center;
+                justify-content: space-evenly;
+                flex-direction: row-reverse; /* NOTE: flex-direction: row-reverse for backward pass */
+                column-gap: 1rem;
+                margin: 0 auto;
+                padding: 0;
+            "
+        ></section>
     </body>
 </html>
