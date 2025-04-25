@@ -18,9 +18,11 @@ VISUALIZE = document["visualize"]
 VISUALIZE_BACK = document["visualize_back"]
 GRAPH_CONTAINER = document["graph_container"]
 
+
 # Objects
 sas_parser = SasParser(s_sas="")
-sas_task_wrapper = [None]
+sas_task = None
+graph = None
 scoping_options = ScopingOptions(enable_forward_pass=False, enable_loop=False)
 layer_count = 0
 visible_layers = 1
@@ -30,12 +32,14 @@ def main():
     set_toggle_content(ENABLE_MERGING, scoping_options.enable_merging)
 
 
-def visualize(sas_task, step_back=False):
+def visualize(step_back=False):
+    global graph
     global layer_count
     global visible_layers
 
-    if layer_count > 0 and visible_layers >= layer_count:
-        return
+    if layer_count > 0 and visible_layers > layer_count:
+        if not step_back:
+            return
 
     for i in range(min(visible_layers - 1, layer_count)):
         # Clear container if it contains subcontainers
@@ -44,16 +48,22 @@ def visualize(sas_task, step_back=False):
     if step_back:
         visible_layers -= 2
 
-    scoping_task = ScopingTask.from_sas(sas_task)
-    graph = TaskGraph(scoping_task, scoping_options)
-    layer_count = len(graph.layers)
-
     for i in range(min(visible_layers, layer_count)):
         layer = graph.layers[i]
         if layer:
             draw_subcontainer(i)
         for node in layer:
             draw_node(i, node)
+
+    if visible_layers <= 1:
+        VISUALIZE_BACK.disabled = True
+    else:
+        VISUALIZE_BACK.disabled = False
+
+    if visible_layers >= layer_count:
+        VISUALIZE.disabled = True
+    else:
+        VISUALIZE.disabled = False
 
     visible_layers += 1
 
@@ -95,7 +105,7 @@ def file_read(ev):
         DOWNLOAD_BTN.style.display = "inline"
         DOWNLOAD_BTN.attrs["download"] = file.name
 
-        sas_task_wrapper[0] = read_sas(event.target.result)
+        read_sas(event.target.result)
 
         VISUALIZE.disabled = False
 
@@ -106,11 +116,22 @@ def file_read(ev):
 
 
 def read_sas(sas_file):
+    global sas_task
+    global graph
+    global layer_count
+
     # Read uploaded .sas file
     sas_parser.s_sas = sas_file
     sas_parser.parse()
     sas_task = sas_parser.to_fd()
-    return sas_task
+
+    # Run scoping
+    scoping_task = ScopingTask.from_sas(sas_task)
+
+    # Build graph for visualization
+    graph = TaskGraph(scoping_task, scoping_options)
+    graph.layers = [l for l in graph.layers if l]
+    layer_count = len(graph.layers)
 
 
 @bind(DOWNLOAD_BTN, "mousedown")
@@ -154,18 +175,17 @@ def toggle_loop(ev):
 
 @bind(VISUALIZE, "click")
 def run_visualize(ev):
-    visualize(sas_task_wrapper[0])
+    visualize()
     if VISUALIZE.textContent == "Visualize":
         # so that this runs only once
         VISUALIZE.textContent = ">"
         VISUALIZE_BACK.textContent = "<"
         VISUALIZE_BACK.hidden = False
-        VISUALIZE_BACK.disabled = False
 
 
 @bind(VISUALIZE_BACK, "click")
 def run_visualize_backwards(ev):
-    visualize(sas_task_wrapper[0], step_back=True)
+    visualize(step_back=True)
 
 
 def set_toggle_content(btn, flag):
