@@ -4,6 +4,7 @@
         <meta charset="utf-8" />
         <script type="text/javascript" src="brython.js"></script>
         <script type="text/javascript" src="brython_stdlib.js"></script>
+        <script src="d3.js"></script>
     </head>
 
     <body
@@ -24,6 +25,7 @@
             import main
             main.main()
         </script>
+        <script type="module" src="main.js"></script>
 
         <div
             style="
@@ -38,8 +40,8 @@
             <input type="file" id="upload_file" />
 
             <!-- Text content of buttons change onclick -->
-            <button id="enable_causal_links">Disable Causal Links</button>
-            <button id="enable_merging">Disable Merging</button>
+            <button id="enable_causal_links">Enable Causal Links</button>
+            <button id="enable_merging">Enable Merging</button>
             <button id="enable_fact_based">Disable Fact-based</button>
             <button id="enable_forward_pass">Enable Forward Pass</button>
             <button id="enable_loop">Enable Loop</button>
@@ -53,23 +55,11 @@
         </div>
         <textarea
             id="sas_content"
-            rows="20"
+            rows="10"
             cols="60"
             autocomplete="off"
         ></textarea>
 
-        <section
-            id="graph_container"
-            style="
-                width: 100%;
-                display: flex;
-                align-items: center;
-                justify-content: space-evenly;
-                flex-direction: row-reverse; /* NOTE: flex-direction: row-reverse for backward pass */
-                column-gap: 1rem;
-                margin: 0 auto;
-                padding: 0;
-            "
-        ></section>
+        <div id="container"></div>
     </body>
 </html>

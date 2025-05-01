@@ -1,4 +1,7 @@
 from browser import bind, window, document, html
+from browser.local_storage import storage
+
+import json
 
 from scoping.options import ScopingOptions
 from scoping.task import ScopingTask
@@ -16,20 +19,28 @@ ENABLE_FORWARD_PASS = document["enable_forward_pass"]
 ENABLE_LOOP = document["enable_loop"]
 VISUALIZE = document["visualize"]
 VISUALIZE_BACK = document["visualize_back"]
-GRAPH_CONTAINER = document["graph_container"]
 
 
 # Objects
 sas_parser = SasParser(s_sas="")
 sas_task = None
 graph = None
-scoping_options = ScopingOptions(enable_forward_pass=False, enable_loop=False)
+scoping_options = ScopingOptions(
+    enable_causal_links=False,
+    enable_merging=False,
+    enable_forward_pass=False,
+    enable_loop=False
+)
 layer_count = 0
 visible_layers = 1
 
 
 def main():
+    set_toggle_content(ENABLE_CAUSAL_LINKS, scoping_options.enable_causal_links)
     set_toggle_content(ENABLE_MERGING, scoping_options.enable_merging)
+    set_toggle_content(ENABLE_FACT_BASED, scoping_options.enable_fact_based)
+    set_toggle_content(ENABLE_FORWARD_PASS, scoping_options.enable_forward_pass)
+    set_toggle_content(ENABLE_LOOP, scoping_options.enable_loop)
 
 
 def visualize(step_back=False):
@@ -41,19 +52,8 @@ def visualize(step_back=False):
         if not step_back:
             return
 
-    for i in range(min(visible_layers - 1, layer_count)):
-        # Clear container if it contains subcontainers
-        del document[f"graph_subcontainer_{i}"]
-
     if step_back:
         visible_layers -= 2
-
-    for i in range(min(visible_layers, layer_count)):
-        layer = graph.layers[i]
-        if layer:
-            draw_subcontainer(i)
-        for node in layer:
-            draw_node(i, node)
 
     if visible_layers <= 1:
         VISUALIZE_BACK.disabled = True
@@ -66,29 +66,6 @@ def visualize(step_back=False):
         VISUALIZE.disabled = False
 
     visible_layers += 1
-
-
-def draw_subcontainer(idx):
-    GRAPH_CONTAINER <= html.DIV(id=f"graph_subcontainer_{idx}", style={"display": "flex", "align-items": "center", "justify-content": "center", "flex-direction": "column", "row-gap": "1rem", "margin": "0", "padding": "0"})
-
-
-def draw_node(idx, op):
-    name = html.P(op.name, style={"font-weight": "bold", "margin": "0"})
-    op_div = html.DIV(id=f"op {name}", style={"display": "flex", "align-items": "center", "justify-content": "center", "flex-direction": "column", "gap": "0", "border": "1px solid black", "border-radius": "1rem", "padding": "1rem", "min-width": "100px", "margin": "0"})
-
-    op_div <= name
-    op_div <= html.HR(style={"width": "100%"})
-    if not op.precondition:
-        op_div <= html.BR()
-    for precond in op.precondition:
-        op_div <= html.P(f"('{precond[0]}', {precond[1]})", style={"margin": "0"})
-    if op.effect:
-        op_div <= html.HR(style={"width": "100%"})
-    for eff in op.effect:
-        op_div <= html.P(f"('{eff[0]}', {eff[1]})", style={"margin": "0"})
-
-    SUBCONTAINER = document[f"graph_subcontainer_{idx}"]
-    SUBCONTAINER <= op_div
 
 
 @bind(UPLOAD_BTN, "input")
@@ -105,7 +82,8 @@ def file_read(ev):
         DOWNLOAD_BTN.style.display = "inline"
         DOWNLOAD_BTN.attrs["download"] = file.name
 
-        read_sas(event.target.result)
+        layers = read_sas(event.target.result)
+        write_json(layers)
 
         VISUALIZE.disabled = False
 
@@ -132,6 +110,8 @@ def read_sas(sas_file):
     graph = TaskGraph(scoping_task, scoping_options)
     graph.layers = [l for l in graph.layers if l]
     layer_count = len(graph.layers)
+
+    return graph.layers
 
 
 @bind(DOWNLOAD_BTN, "mousedown")
@@ -191,3 +171,17 @@ def run_visualize_backwards(ev):
 def set_toggle_content(btn, flag):
     opt = " ".join(btn.textContent.split()[1:])
     btn.textContent = f"Disable {opt}" if flag else f"Enable {opt}"
+
+
+def write_json(layers):
+    data = {"nodes": [], "links": []}
+    node_names = []
+    for i in range(len(layers)):
+        layer = layers[i]
+        for node in layer:
+            if node.name not in node_names:
+                node_names.append(node.name)
+                data["nodes"].append({"id": node.name, "group": i})
+                for p in node.parents:
+                    data["links"].append({"source": p.name, "target": node.name})
+    storage["scoping_data"] = json.dumps(data)
