@@ -176,6 +176,7 @@ def set_toggle_content(btn, flag):
 def write_json(layers):
     data = {"nodes": [], "links": []}
     node_names = []
+
     for i in range(len(layers)):
         layer = layers[i]
         for node in layer:
@@ -184,4 +185,5 @@ def write_json(layers):
                 data["nodes"].append({"id": node.name, "group": i})
                 for p in node.parents:
                     data["links"].append({"source": p.name, "target": node.name})
+
     storage["scoping_data"] = json.dumps(data)

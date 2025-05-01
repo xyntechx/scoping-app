@@ -9,6 +9,16 @@ const network = (data) => {
     const links = data.links.map((d) => ({ ...d }));
     const nodes = data.nodes.map((d) => ({ ...d }));
 
+    const xPositionScale = d3
+        .scaleLinear()
+        .domain([d3.max(nodes, (d) => d.group), d3.min(nodes, (d) => d.group)])
+        .range([width * 0.2, width * 0.8]);
+
+    nodes.forEach((node) => {
+        node.x = xPositionScale(node.group);
+        node.y = height / 2 + (Math.random() - 0.5) * height * 0.5;
+    });
+
     const simulation = d3
         .forceSimulation(nodes)
         .force(
@@ -18,8 +28,11 @@ const network = (data) => {
                 .id((d) => d.id)
                 .distance(100)
         )
-        .force("charge", d3.forceManyBody())
+        .force("charge", d3.forceManyBody().strength(-200))
         .force("center", d3.forceCenter(width / 2, height / 2))
+        .force("x", d3.forceX((d) => xPositionScale(d.group)).strength(0.5))
+        .force("y", d3.forceY(height / 2).strength(0.1))
+        .force("collision", d3.forceCollide(25))
         .on("tick", ticked);
 
     const svg = d3
@@ -83,6 +96,15 @@ const network = (data) => {
     );
 
     function ticked() {
+        nodes.forEach((node) => {
+            node.x = Math.max(
+                xPositionScale(node.group) - 50,
+                Math.min(xPositionScale(node.group) + 50, node.x)
+            );
+            node.x = Math.max(20, Math.min(width - 20, node.x));
+            node.y = Math.max(20, Math.min(height - 20, node.y));
+        });
+
         link.attr("x1", (d) => d.source.x)
             .attr("y1", (d) => d.source.y)
             .attr("x2", (d) => {
@@ -99,7 +121,6 @@ const network = (data) => {
             });
 
         node.attr("cx", (d) => d.x).attr("cy", (d) => d.y);
-
         label.attr("x", (d) => d.x).attr("y", (d) => d.y - 30);
     }
 
@@ -110,7 +131,13 @@ const network = (data) => {
     }
 
     function dragged(event) {
-        event.subject.fx = event.x;
+        const group = event.subject.group;
+        const targetX = event.x;
+
+        const minX = xPositionScale(group) - 50;
+        const maxX = xPositionScale(group) + 50;
+
+        event.subject.fx = Math.max(minX, Math.min(maxX, targetX));
         event.subject.fy = event.y;
     }
 
