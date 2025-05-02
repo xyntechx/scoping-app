@@ -2,11 +2,13 @@ from browser import bind, window, document, html
 from browser.local_storage import storage
 
 import json
+import io
 
 from scoping.options import ScopingOptions
 from scoping.task import ScopingTask
 from scoping.sas_parser import SasParser
 from scoping.visualization import TaskGraph
+from scoping.core import scope
 
 
 # DOM elements
@@ -77,13 +79,15 @@ def file_read(ev):
         event.target.
         The file content, as text, is the FileReader instance's "result"
         attribute."""
-        document['sas_content'].value = event.target.result
-
         DOWNLOAD_BTN.style.display = "inline"
         DOWNLOAD_BTN.attrs["download"] = file.name
 
-        layers = read_sas(event.target.result)
+        scoped_task, layers = read_sas(event.target.result)
         write_json(layers)
+
+        f = io.StringIO()
+        scoped_task.to_sas().output(f)
+        document['sas_content'].value = f.getvalue()
 
         VISUALIZE.disabled = False
 
@@ -108,10 +112,11 @@ def read_sas(sas_file):
 
     # Build graph for visualization
     graph = TaskGraph(scoping_task, scoping_options)
+    scoped_task = scope(scoping_task, scoping_options)
     graph.layers = [l for l in graph.layers if l]
     layer_count = len(graph.layers)
 
-    return graph.layers
+    return scoped_task, graph.layers
 
 
 @bind(DOWNLOAD_BTN, "mousedown")
