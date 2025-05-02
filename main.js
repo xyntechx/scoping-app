@@ -97,10 +97,12 @@ const network = (data) => {
 
     function ticked() {
         nodes.forEach((node) => {
-            node.x = Math.max(
-                xPositionScale(node.group) - 50,
-                Math.min(xPositionScale(node.group) + 50, node.x)
-            );
+            node.x = node.visible
+                ? Math.max(
+                      xPositionScale(node.group) - 50,
+                      Math.min(xPositionScale(node.group) + 50, node.x)
+                  )
+                : node.xPos;
             node.x = Math.max(20, Math.min(width - 20, node.x));
             node.y = Math.max(20, Math.min(height - 20, node.y));
         });
@@ -163,6 +165,16 @@ const drawNetwork = ({ step_back }) => {
         (l) =>
             visible_nodes.includes(l.source) && visible_nodes.includes(l.target)
     );
+
+    for (let i = 0; i < data.nodes.length; i++) {
+        const name = data.nodes[i].id;
+        if (!visible_nodes.includes(name)) {
+            data.nodes[i].visible = false;
+            data.nodes[i].xPos = 30;
+        } else {
+            data.nodes[i].visible = true;
+        }
+    }
 
     const container = document.getElementById("container");
     const networkDiv = document.getElementById("networkDiv");

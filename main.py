@@ -186,4 +186,9 @@ def write_json(layers):
                 for p in node.parents:
                     data["links"].append({"source": p.name, "target": node.name})
 
+    for op in sas_task.operators:
+        if op.name not in node_names:
+            node_names.append(op.name)
+            data["nodes"].append({"id": op.name, "group": len(layers)})
+
     storage["scoping_data"] = json.dumps(data)
