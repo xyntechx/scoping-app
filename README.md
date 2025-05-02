@@ -9,5 +9,3 @@ Run server
 ```
 python3 -m http.server
 ```
-
-python3 -m scoping.tests.visualize_double_merge
