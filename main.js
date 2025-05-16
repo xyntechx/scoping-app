@@ -145,7 +145,7 @@ const network = (data) => {
 
 const nodeDetails = (node) => {
     const width = 500;
-    const height = 300;
+    const height = 215;
 
     const svg = d3
         .create("svg")
@@ -155,14 +155,14 @@ const nodeDetails = (node) => {
         .attr("style", "max-width: 100%; height: auto; background: #fff;")
         .attr("id", "nodeDetailsText");
 
-    const foreignObject = svg
+    const info = svg
         .append("foreignObject")
         .attr("width", 300)
         .attr("height", 300)
         .attr("x", (width - 300) / 2)
-        .attr("y", (height - 300) / 2);
+        .attr("y", 0);
 
-    const div = foreignObject
+    const div = info
         .append("xhtml:div")
         .style("background-color", "#efefef")
         .style("border", "solid")
