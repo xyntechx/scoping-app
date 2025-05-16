@@ -1,7 +1,7 @@
 import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
 
 const network = (data) => {
-    const width = 928;
+    const width = 1000;
     const height = 600;
 
     const links = data.links.map((d) => ({ ...d }));
@@ -70,7 +70,8 @@ const network = (data) => {
         .data(nodes)
         .join("circle")
         .attr("r", 20)
-        .attr("fill", (d) => "#fff");
+        .attr("fill", (d) => "#fff")
+        .on("click", (e, d) => drawNodeDetails(d));
 
     const label = svg
         .append("g")
@@ -140,6 +141,54 @@ const network = (data) => {
     }
 
     return svg.node();
+};
+
+const nodeDetails = (node) => {
+    const width = 500;
+    const height = 300;
+
+    const svg = d3
+        .create("svg")
+        .attr("width", width)
+        .attr("height", height)
+        .attr("viewBox", [0, 0, width, height])
+        .attr("style", "max-width: 100%; height: auto; background: #fff;")
+        .attr("id", "nodeDetailsText");
+
+    const foreignObject = svg
+        .append("foreignObject")
+        .attr("width", 300)
+        .attr("height", 300)
+        .attr("x", (width - 300) / 2)
+        .attr("y", (height - 300) / 2);
+
+    const div = foreignObject
+        .append("xhtml:div")
+        .style("background-color", "#efefef")
+        .style("border", "solid")
+        .style("border-width", "1px")
+        .style("border-radius", "5px")
+        .style("padding", "10px")
+        .style("width", 300)
+        .style("height", 300)
+        .html(
+            `<p>${node.id}</p><p>Preconditions:</p><p>${node.precondition.map(
+                (precond) =>
+                    `(${precond.split(" ")[0]},${precond.split(" ")[1]})`
+            )}</p><p>Effects:</p><p>${node.effect.map(
+                (eff) => `(${eff.split(" ")[0]},${eff.split(" ")[1]})`
+            )}</p>`
+        );
+
+    return svg.node();
+};
+
+const drawNodeDetails = (node) => {
+    const elem = nodeDetails(node);
+    const container = document.getElementById("nodeDetails");
+    const nodeDetailsText = document.getElementById("nodeDetailsText");
+    if (nodeDetailsText) container.removeChild(nodeDetailsText);
+    container.append(elem);
 };
 
 const drawNetwork = ({ step_back }) => {

@@ -187,7 +187,11 @@ def write_json(layers):
         for node in layer:
             if node.name not in node_names:
                 node_names.append(node.name)
-                data["nodes"].append({"id": node.name, "group": i})
+                precondition = list(map(lambda tup: " ".join(str(x) for x in tup), node.precondition))
+                effect = list(map(lambda tup: " ".join(str(x) for x in tup), node.effect))
+                data["nodes"].append(
+                    {"id": node.name, "group": i, "precondition": precondition, "effect": effect}
+                )
                 for p in node.parents:
                     data["links"].append({"source": p.name, "target": node.name})
 
