@@ -4,8 +4,6 @@ const network = (data) => {
     const width = 928;
     const height = 600;
 
-    const color = d3.scaleOrdinal(d3.schemeCategory10);
-
     const links = data.links.map((d) => ({ ...d }));
     const nodes = data.nodes.map((d) => ({ ...d }));
 
@@ -28,9 +26,9 @@ const network = (data) => {
                 .id((d) => d.id)
                 .distance(100)
         )
-        .force("charge", d3.forceManyBody().strength(-200))
+        .force("charge", d3.forceManyBody().strength(-100))
         .force("center", d3.forceCenter(width / 2, height / 2))
-        .force("x", d3.forceX((d) => xPositionScale(d.group)).strength(0.5))
+        .force("x", d3.forceX((d) => xPositionScale(d.group)).strength(1))
         .force("y", d3.forceY(height / 2).strength(0.1))
         .force("collision", d3.forceCollide(25))
         .on("tick", ticked);
@@ -72,7 +70,7 @@ const network = (data) => {
         .data(nodes)
         .join("circle")
         .attr("r", 20)
-        .attr("fill", (d) => color(d.group));
+        .attr("fill", (d) => "#fff");
 
     const label = svg
         .append("g")
@@ -97,13 +95,11 @@ const network = (data) => {
 
     function ticked() {
         nodes.forEach((node) => {
-            node.x = node.visible
-                ? Math.max(
-                      xPositionScale(node.group) - 50,
-                      Math.min(xPositionScale(node.group) + 50, node.x)
-                  )
-                : node.xPos;
-            node.x = Math.max(20, Math.min(width - 20, node.x));
+            if (node.visible) {
+                node.x = xPositionScale(node.group);
+            } else {
+                node.x = node.xPos;
+            }
             node.y = Math.max(20, Math.min(height - 20, node.y));
         });
 
@@ -133,19 +129,13 @@ const network = (data) => {
     }
 
     function dragged(event) {
-        const group = event.subject.group;
-        const targetX = event.x;
-
-        const minX = xPositionScale(group) - 50;
-        const maxX = xPositionScale(group) + 50;
-
-        event.subject.fx = Math.max(minX, Math.min(maxX, targetX));
+        event.subject.fx = xPositionScale(event.subject.group);
         event.subject.fy = event.y;
     }
 
     function dragended(event) {
         if (!event.active) simulation.alphaTarget(0);
-        event.subject.fx = null;
+        event.subject.fx = xPositionScale(event.subject.group);
         event.subject.fy = null;
     }
 
