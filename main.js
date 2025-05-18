@@ -8,10 +8,25 @@ const createNetwork = (data) => {
     const links = data.links.map((d) => ({ ...d }));
     const nodes = data.nodes.map((d) => ({ ...d }));
 
-    const xPositionScale = d3
-        .scaleLinear()
-        .domain([d3.max(nodes, (d) => d.group), d3.min(nodes, (d) => d.group)])
-        .range([width * 0.2, width * 0.8]);
+    let xPositionScale;
+
+    if (data.is_forward) {
+        xPositionScale = d3
+            .scaleLinear()
+            .domain([
+                d3.min(nodes, (d) => d.group),
+                d3.max(nodes, (d) => d.group),
+            ])
+            .range([width * 0.2, width * 0.8]);
+    } else {
+        xPositionScale = d3
+            .scaleLinear()
+            .domain([
+                d3.max(nodes, (d) => d.group),
+                d3.min(nodes, (d) => d.group),
+            ])
+            .range([width * 0.2, width * 0.8]);
+    }
 
     nodes.forEach((node) => {
         node.x = xPositionScale(node.group);
@@ -151,10 +166,25 @@ const updateNetwork = (data) => {
     const links = data.links.map((d) => ({ ...d }));
     const nodes = data.nodes.map((d) => ({ ...d }));
 
-    const xPositionScale = d3
-        .scaleLinear()
-        .domain([d3.max(nodes, (d) => d.group), d3.min(nodes, (d) => d.group)])
-        .range([width * 0.2, width * 0.8]);
+    let xPositionScale;
+
+    if (data.is_forward) {
+        xPositionScale = d3
+            .scaleLinear()
+            .domain([
+                d3.min(nodes, (d) => d.group),
+                d3.max(nodes, (d) => d.group),
+            ])
+            .range([width * 0.2, width * 0.8]);
+    } else {
+        xPositionScale = d3
+            .scaleLinear()
+            .domain([
+                d3.max(nodes, (d) => d.group),
+                d3.min(nodes, (d) => d.group),
+            ])
+            .range([width * 0.2, width * 0.8]);
+    }
 
     nodes.forEach((node) => {
         node.oldX = node.x || 0;
@@ -380,7 +410,8 @@ const drawNetwork = ({ step_back }) => {
         const name = data.nodes[i].id;
         if (!visible_nodes.includes(name)) {
             data.nodes[i].visible = false;
-            data.nodes[i].xPos = 30;
+            if (data.is_forward) data.nodes[i].xPos = 970;
+            else data.nodes[i].xPos = 30;
         } else {
             data.nodes[i].visible = true;
         }
@@ -398,3 +429,6 @@ document.getElementById("visualize").onclick = () =>
     drawNetwork({ step_back: false });
 document.getElementById("visualize_back").onclick = () =>
     drawNetwork({ step_back: true });
+
+document.getElementById("enable_forward_pass").onclick = () =>
+    (visible_layers = -1);

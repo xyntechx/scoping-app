@@ -1,4 +1,4 @@
-from browser import bind, window, document, html
+from browser import bind, window, document
 from browser.local_storage import storage
 
 import json
@@ -75,10 +75,6 @@ def file_read(ev):
     global layer_count
 
     def onload(event):
-        """Triggered when file is read. The FileReader instance is
-        event.target.
-        The file content, as text, is the FileReader instance's "result"
-        attribute."""
         DOWNLOAD_BTN.style.display = "inline"
         DOWNLOAD_BTN.attrs["download"] = file.name
 
@@ -119,11 +115,20 @@ def read_sas(sas_file):
     return scoped_task, graph.layers
 
 
+def update_sas():
+    global visible_layers
+
+    scoped_task, layers = read_sas(document['sas_content'].value)
+    write_json(layers)
+
+    f = io.StringIO()
+    scoped_task.to_sas().output(f)
+    document['sas_content'].value = f.getvalue()
+    visible_layers = 1
+
+
 @bind(DOWNLOAD_BTN, "mousedown")
 def mousedown(ev):
-    """Create a "data URI" to set the downloaded file content
-    Cf. https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URIs
-    """
     content = window.encodeURIComponent(document['sas_content'].value)
     DOWNLOAD_BTN.attrs["href"] = "data:text/plain," + content
 
@@ -132,30 +137,40 @@ def mousedown(ev):
 def toggle_causal_links(ev):
     scoping_options.enable_causal_links = not scoping_options.enable_causal_links
     set_toggle_content(ENABLE_CAUSAL_LINKS, scoping_options.enable_causal_links)
+    update_sas()
+    VISUALIZE.disabled = False
 
 
 @bind(ENABLE_MERGING, "click")
 def toggle_merging(ev):
     scoping_options.enable_merging = not scoping_options.enable_merging
     set_toggle_content(ENABLE_MERGING, scoping_options.enable_merging)
+    update_sas()
+    VISUALIZE.disabled = False
 
 
 @bind(ENABLE_FACT_BASED, "click")
 def toggle_fact_based(ev):
     scoping_options.enable_fact_based = not scoping_options.enable_fact_based
     set_toggle_content(ENABLE_FACT_BASED, scoping_options.enable_fact_based)
+    update_sas()
+    VISUALIZE.disabled = False
 
 
 @bind(ENABLE_FORWARD_PASS, "click")
 def toggle_forward_pass(ev):
     scoping_options.enable_forward_pass = not scoping_options.enable_forward_pass
     set_toggle_content(ENABLE_FORWARD_PASS, scoping_options.enable_forward_pass)
+    update_sas()
+    VISUALIZE.disabled = False
 
 
 @bind(ENABLE_LOOP, "click")
 def toggle_loop(ev):
     scoping_options.enable_loop = not scoping_options.enable_loop
     set_toggle_content(ENABLE_LOOP, scoping_options.enable_loop)
+    update_sas()
+    VISUALIZE.disabled = False
 
 
 @bind(VISUALIZE, "click")
@@ -199,5 +214,7 @@ def write_json(layers):
         if op.name not in node_names:
             node_names.append(op.name)
             data["nodes"].append({"id": op.name, "group": len(layers)})
+
+    data["is_forward"] = scoping_options.enable_forward_pass
 
     storage["scoping_data"] = json.dumps(data)
