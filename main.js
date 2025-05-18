@@ -1,6 +1,7 @@
 import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
+import "https://esm.sh/d3-transition";
 
-const network = (data) => {
+const createNetwork = (data) => {
     const width = 1000;
     const height = 600;
 
@@ -143,6 +144,171 @@ const network = (data) => {
     return svg.node();
 };
 
+const updateNetwork = (data) => {
+    const width = 1000;
+    const height = 600;
+
+    const links = data.links.map((d) => ({ ...d }));
+    const nodes = data.nodes.map((d) => ({ ...d }));
+
+    const xPositionScale = d3
+        .scaleLinear()
+        .domain([d3.max(nodes, (d) => d.group), d3.min(nodes, (d) => d.group)])
+        .range([width * 0.2, width * 0.8]);
+
+    nodes.forEach((node) => {
+        node.oldX = node.x || 0;
+        node.oldY = node.y || height / 2;
+        node.x = node.visible ? xPositionScale(node.group) : node.xPos;
+        node.y = height / 2 + (Math.random() - 0.5) * height * 0.5;
+    });
+
+    const svg = d3.select("#networkDiv");
+
+    const link = svg
+        .select("g:nth-of-type(1)")
+        .selectAll("line")
+        .data(
+            links,
+            (d) => `${d.source.id || d.source}-${d.target.id || d.target}`
+        );
+
+    link.exit().transition().duration(500).attr("stroke-opacity", 0).remove();
+
+    const linkEnter = link
+        .enter()
+        .append("line")
+        .attr("stroke", "#999")
+        .attr("stroke-opacity", 0)
+        .attr("stroke-width", (d) => Math.sqrt(d.value || 1))
+        .attr("marker-end", "url(#arrowhead)")
+        .attr("x1", (d) => d.source.oldX || width / 2)
+        .attr("y1", (d) => d.source.oldY || height / 2)
+        .attr("x2", (d) => d.target.oldX || width / 2)
+        .attr("y2", (d) => d.target.oldY || height / 2);
+
+    linkEnter
+        .merge(link)
+        .transition()
+        .duration(1000)
+        .attr("stroke-opacity", 0.6)
+        .attr("x1", (d) =>
+            typeof d.source === "object"
+                ? d.source.x
+                : nodes.find((n) => n.id === d.source).x
+        )
+        .attr("y1", (d) =>
+            typeof d.source === "object"
+                ? d.source.y
+                : nodes.find((n) => n.id === d.source).y
+        )
+        .attr("x2", (d) => {
+            const source =
+                typeof d.source === "object"
+                    ? d.source
+                    : nodes.find((n) => n.id === d.source);
+            const target =
+                typeof d.target === "object"
+                    ? d.target
+                    : nodes.find((n) => n.id === d.target);
+            const dx = target.x - source.x;
+            const dy = target.y - source.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            return dist === 0 ? target.x : target.x - (dx * 14) / dist;
+        })
+        .attr("y2", (d) => {
+            const source =
+                typeof d.source === "object"
+                    ? d.source
+                    : nodes.find((n) => n.id === d.source);
+            const target =
+                typeof d.target === "object"
+                    ? d.target
+                    : nodes.find((n) => n.id === d.target);
+            const dx = target.x - source.x;
+            const dy = target.y - source.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            return dist === 0 ? target.y : target.y - (dy * 14) / dist;
+        });
+
+    const node = svg
+        .select("g:nth-of-type(2)")
+        .selectAll("circle")
+        .data(nodes, (d) => d.id);
+
+    node.exit().transition().duration(500).attr("r", 0).remove();
+
+    const nodeEnter = node
+        .enter()
+        .append("circle")
+        .attr("r", 0)
+        .attr("fill", "#fff")
+        .attr("cx", (d) => d.oldX || 0)
+        .attr("cy", (d) => d.oldY || height / 2)
+        .on("click", (e, d) => drawNodeDetails(d));
+
+    nodeEnter.append("title").text((d) => d.id);
+
+    nodeEnter.call(
+        d3
+            .drag()
+            .on("start", dragstarted)
+            .on("drag", dragged)
+            .on("end", dragended)
+    );
+
+    nodeEnter
+        .merge(node)
+        .transition()
+        .duration(1000)
+        .attr("r", 20)
+        .attr("cx", (d) => d.x)
+        .attr("cy", (d) => d.y);
+
+    const label = svg
+        .select("g.labels")
+        .selectAll("text")
+        .data(nodes, (d) => d.id);
+
+    label.exit().transition().duration(500).attr("opacity", 0).remove();
+
+    const labelEnter = label
+        .enter()
+        .append("text")
+        .attr("text-anchor", "middle")
+        .attr("font-size", 10)
+        .attr("dy", "0.3em")
+        .attr("opacity", 0)
+        .attr("x", (d) => d.oldX || 0)
+        .attr("y", (d) => d.oldY - 30 || height / 2 - 30)
+        .text((d) => d.id);
+
+    labelEnter
+        .merge(label)
+        .transition()
+        .duration(1000)
+        .attr("opacity", 1)
+        .attr("x", (d) => d.x)
+        .attr("y", (d) => d.y - 30);
+
+    function dragstarted(event) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        event.subject.fx = event.subject.x;
+        event.subject.fy = event.subject.y;
+    }
+
+    function dragged(event) {
+        event.subject.fx = xPositionScale(event.subject.group);
+        event.subject.fy = event.y;
+    }
+
+    function dragended(event) {
+        if (!event.active) simulation.alphaTarget(0);
+        event.subject.fx = xPositionScale(event.subject.group);
+        event.subject.fy = null;
+    }
+};
+
 const nodeDetails = (node) => {
     const width = 500;
     const height = 215;
@@ -192,14 +358,19 @@ const drawNodeDetails = (node) => {
 };
 
 const drawNetwork = ({ step_back }) => {
+    const isNew = visible_layers === -1;
+
     if (step_back) visible_layers--;
     else visible_layers++;
+
+    if (visible_layers < -1) visible_layers = -1;
 
     const data = JSON.parse(window.localStorage.getItem("scoping_data"));
 
     const visible_nodes = data.nodes
         .filter((n) => n.group <= visible_layers)
         .map((n) => n.id);
+
     data.links = data.links.filter(
         (l) =>
             visible_nodes.includes(l.source) && visible_nodes.includes(l.target)
@@ -217,8 +388,9 @@ const drawNetwork = ({ step_back }) => {
 
     const container = document.getElementById("container");
     const networkDiv = document.getElementById("networkDiv");
-    if (networkDiv) container.removeChild(networkDiv);
-    container.append(network(data));
+
+    if (isNew && !networkDiv) container.append(createNetwork(data));
+    else updateNetwork(data);
 };
 
 let visible_layers = -1;
