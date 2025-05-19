@@ -117,7 +117,7 @@ const createNetwork = (data) => {
             } else {
                 node.x = node.xPos;
             }
-            node.y = Math.max(20, Math.min(height - 20, node.y));
+            node.y = Math.max(50, Math.min(height - 50, node.y));
         });
 
         link.attr("x1", (d) => d.source.x)
@@ -166,6 +166,19 @@ const updateNetwork = (data) => {
     const links = data.links.map((d) => ({ ...d }));
     const nodes = data.nodes.map((d) => ({ ...d }));
 
+    const currentNodes = {};
+    d3.select("#networkDiv")
+        .select("g:nth-of-type(2)")
+        .selectAll("circle")
+        .each(function (d) {
+            if (d && d.id) {
+                currentNodes[d.id] = {
+                    x: parseFloat(d3.select(this).attr("cx")),
+                    y: parseFloat(d3.select(this).attr("cy")),
+                };
+            }
+        });
+
     let xPositionScale;
 
     if (data.is_forward) {
@@ -187,10 +200,17 @@ const updateNetwork = (data) => {
     }
 
     nodes.forEach((node) => {
-        node.oldX = node.x || 0;
-        node.oldY = node.y || height / 2;
+        if (currentNodes[node.id]) {
+            node.oldX = currentNodes[node.id].x;
+            node.oldY = currentNodes[node.id].y;
+            node.y = currentNodes[node.id].y;
+        } else {
+            node.oldX = width / 2;
+            node.oldY = height / 2;
+            node.y = height / 2 + (Math.random() - 0.5) * height * 0.5;
+        }
+
         node.x = node.visible ? xPositionScale(node.group) : node.xPos;
-        node.y = height / 2 + (Math.random() - 0.5) * height * 0.5;
     });
 
     const svg = d3.select("#networkDiv");
