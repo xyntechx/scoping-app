@@ -1,16 +1,19 @@
 import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
-import "https://esm.sh/d3-transition";
+import "https://esm.sh/d3-transition"; // use .transition() for animations
 
 const createNetwork = (data) => {
+    // Initializes the D3 graph
+
     const width = 1000;
     const height = 600;
 
     const links = data.links.map((d) => ({ ...d }));
     const nodes = data.nodes.map((d) => ({ ...d }));
 
-    let xPositionScale;
+    let xPositionScale; // controls how the x position of each node is determined
 
     if (data.is_forward) {
+        // when forward pass, nodes with lower group numbers lie more to the left (i.e. init and * are the leftmost nodes)
         xPositionScale = d3
             .scaleLinear()
             .domain([
@@ -19,6 +22,7 @@ const createNetwork = (data) => {
             ])
             .range([width * 0.2, width * 0.8]);
     } else {
+        // when backward pass, nodes with lower group numbers lie more to the right (i.e. goal is the rightmost node)
         xPositionScale = d3
             .scaleLinear()
             .domain([
@@ -29,8 +33,9 @@ const createNetwork = (data) => {
     }
 
     nodes.forEach((node) => {
-        node.x = xPositionScale(node.group);
-        node.y = height / 2 + (Math.random() - 0.5) * height * 0.5;
+        // inits x and y positions of all nodes
+        node.x = xPositionScale(node.group); // uses the xPositionScale function defined above
+        node.y = height / 2 + (Math.random() - 0.5) * height * 0.5; // randomly initialized
     });
 
     const simulation = d3
@@ -111,6 +116,7 @@ const createNetwork = (data) => {
     );
 
     function ticked() {
+        // more init code
         nodes.forEach((node) => {
             if (node.visible) {
                 node.x = xPositionScale(node.group);
@@ -120,6 +126,7 @@ const createNetwork = (data) => {
             node.y = Math.max(50, Math.min(height - 50, node.y));
         });
 
+        // link starts at parent, ends at child
         link.attr("x1", (d) => d.source.x)
             .attr("y1", (d) => d.source.y)
             .attr("x2", (d) => {
@@ -160,12 +167,15 @@ const createNetwork = (data) => {
 };
 
 const updateNetwork = (data) => {
+    // Updates the D3 graph whenever data is updated
+
     const width = 1000;
     const height = 600;
 
     const links = data.links.map((d) => ({ ...d }));
     const nodes = data.nodes.map((d) => ({ ...d }));
 
+    // Gets nodes directly from DOM. Particularly interested in each of their x,y positions.
     const currentNodes = {};
     d3.select("#networkDiv")
         .select("g:nth-of-type(2)")
@@ -179,7 +189,7 @@ const updateNetwork = (data) => {
             }
         });
 
-    let xPositionScale;
+    let xPositionScale; // same thing as in `createNetwork`
 
     if (data.is_forward) {
         xPositionScale = d3
@@ -200,6 +210,7 @@ const updateNetwork = (data) => {
     }
 
     nodes.forEach((node) => {
+        // init code, useful for transitions (animations)
         if (currentNodes[node.id]) {
             node.oldX = currentNodes[node.id].x;
             node.oldY = currentNodes[node.id].y;
@@ -210,6 +221,7 @@ const updateNetwork = (data) => {
             node.y = height / 2 + (Math.random() - 0.5) * height * 0.5;
         }
 
+        // if the node is currently visible (i.e. has links adjacent to it; already part of graph) then its x position should follow its group's assigned x position. Otherwise, stay on the leftmost/rightmost side (depending on whether it's currently backward/forward pass).
         node.x = node.visible ? xPositionScale(node.group) : node.xPos;
     });
 
@@ -360,6 +372,8 @@ const updateNetwork = (data) => {
 };
 
 const nodeDetails = (node) => {
+    // Creates the details box onClick of a node
+
     const width = 500;
     const height = 215;
 
@@ -400,6 +414,7 @@ const nodeDetails = (node) => {
 };
 
 const drawNodeDetails = (node) => {
+    // Actually attaches the nodeDetails element to the DOM
     const elem = nodeDetails(node);
     const container = document.getElementById("nodeDetails");
     const nodeDetailsText = document.getElementById("nodeDetailsText");
@@ -408,6 +423,9 @@ const drawNodeDetails = (node) => {
 };
 
 const drawNetwork = ({ step_back }) => {
+    // Actually attaches the graph (network) element to the DOM
+    // Also reads localStorage and processes the graph data for rendering
+
     const isNew = visible_layers === -1;
 
     if (step_back) visible_layers--;
@@ -429,6 +447,7 @@ const drawNetwork = ({ step_back }) => {
     for (let i = 0; i < data.nodes.length; i++) {
         const name = data.nodes[i].id;
         if (!visible_nodes.includes(name)) {
+            // if node currently not visible, set its x position to leftmost (if backward pass) or rightmost (if forward pass)
             data.nodes[i].visible = false;
             if (data.is_forward) data.nodes[i].xPos = 970;
             else data.nodes[i].xPos = 30;

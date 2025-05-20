@@ -11,7 +11,7 @@ from scoping.visualization import TaskGraph
 from scoping.core import scope
 
 
-# DOM elements
+# DOM elements (accessed by `id` attribute in index.html)
 UPLOAD_BTN = document["upload_file"]
 DOWNLOAD_BTN = document["download_file"]
 ENABLE_CAUSAL_LINKS = document["enable_causal_links"]
@@ -23,7 +23,7 @@ VISUALIZE = document["visualize"]
 VISUALIZE_BACK = document["visualize_back"]
 
 
-# Objects
+# Global objects (remember to access these with the `global` keyword in functions)
 sas_parser = SasParser(s_sas="")
 sas_task = None
 graph = None
@@ -33,8 +33,8 @@ scoping_options = ScopingOptions(
     enable_forward_pass=False,
     enable_loop=False
 )
-layer_count = 0
-visible_layers = 1
+layer_count = 0 # actual/total number of layers in the graph
+visible_layers = 1 # number of layers currently in the graph (nodes that are bunched up on the left/right without any links adjacent to them are not considered) -- lines up with the number of "visualize"-"visualize back" button clicks
 
 
 def main():
@@ -52,13 +52,14 @@ def visualize(step_back=False):
 
     if layer_count > 0 and visible_layers > layer_count:
         if not step_back:
+            # prevents "next"-ing a graph when it is already fully built
             return
 
     if step_back:
         visible_layers -= 2
 
     if visible_layers <= 1:
-        VISUALIZE_BACK.disabled = True
+        VISUALIZE_BACK.disabled = True # toggle the `disabled` attribute of this button in the DOM to `true`
     else:
         VISUALIZE_BACK.disabled = False
 
@@ -78,12 +79,12 @@ def file_read(ev):
         DOWNLOAD_BTN.style.display = "inline"
         DOWNLOAD_BTN.attrs["download"] = file.name
 
-        scoped_task, layers = read_sas(event.target.result)
+        scoped_task, layers = read_sas(event.target.result) # creates scoped task and graph data
         write_json(layers)
 
         f = io.StringIO()
         scoped_task.to_sas().output(f)
-        document['sas_content'].value = f.getvalue()
+        document['sas_content'].value = f.getvalue() # saves scoped task SAS to the DOM (for downloading purposes, can also be displayed in the DOM)
 
         VISUALIZE.disabled = False
 
@@ -116,6 +117,9 @@ def read_sas(sas_file):
 
 
 def update_sas():
+    # This function is useful when the enable/disable buttons are clicked (e.g. enable forward pass)
+    # Recreates the scoped task and graph data, saves the new scoped task SAS in the DOM, and resets the layer counter
+
     global visible_layers
 
     scoped_task, layers = read_sas(document['sas_content'].value)
@@ -189,13 +193,14 @@ def run_visualize_backwards(ev):
 
 
 def set_toggle_content(btn, flag):
+    # Just frontend stuff. Controls what is rendered as the button text whenever that button is clicked.
     opt = " ".join(btn.textContent.split()[1:])
     btn.textContent = f"Disable {opt}" if flag else f"Enable {opt}"
 
 
 def write_json(layers):
-    data = {"nodes": [], "links": []}
-    node_names = []
+    data = {"nodes": [], "links": [], "is_forward": None} # graph data to be saved in localStorage and then read in `main.js`
+    node_names = [] # auxiliary var for building `data`
 
     for i in range(len(layers)):
         layer = layers[i]
