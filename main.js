@@ -251,13 +251,47 @@ const updateNetwork = (data) => {
         .enter()
         .append("line")
         .attr("stroke", "#999")
-        .attr("stroke-opacity", 0)
+        .attr("stroke-opacity", 0.6)
         .attr("stroke-width", (d) => Math.sqrt(d.value || 1))
         .attr("marker-end", "url(#arrowhead)")
-        .attr("x1", (d) => d.source.oldX || width / 2)
-        .attr("y1", (d) => d.source.oldY || height / 2)
-        .attr("x2", (d) => d.target.oldX || width / 2)
-        .attr("y2", (d) => d.target.oldY || height / 2);
+        .attr("x1", (d) =>
+            typeof d.source === "object"
+                ? d.source.x
+                : nodes.find((n) => n.id === d.source).oldX
+        )
+        .attr("y1", (d) =>
+            typeof d.source === "object"
+                ? d.source.y
+                : nodes.find((n) => n.id === d.source).oldY
+        )
+        .attr("x2", (d) => {
+            const source =
+                typeof d.source === "object"
+                    ? d.source
+                    : nodes.find((n) => n.id === d.source);
+            const target =
+                typeof d.target === "object"
+                    ? d.target
+                    : nodes.find((n) => n.id === d.target);
+            const dx = target.oldX - source.oldX;
+            const dy = target.oldY - source.oldY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            return dist === 0 ? target.oldX : target.oldX - (dx * 14) / dist;
+        })
+        .attr("y2", (d) => {
+            const source =
+                typeof d.source === "object"
+                    ? d.source
+                    : nodes.find((n) => n.id === d.source);
+            const target =
+                typeof d.target === "object"
+                    ? d.target
+                    : nodes.find((n) => n.id === d.target);
+            const dx = target.oldX - source.oldX;
+            const dy = target.oldY - source.oldY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            return dist === 0 ? target.oldY : target.oldY - (dy * 14) / dist;
+        });
 
     linkEnter
         .merge(link)
