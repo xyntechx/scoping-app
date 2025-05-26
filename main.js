@@ -1,6 +1,13 @@
 import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
 import "https://esm.sh/d3-transition"; // use .transition() for animations
 
+const nodeShape = "rect"
+const nodeWidth = 20
+const nodeHeight = 20
+const nodeBorderRadius = 6
+const labelOffsetX = 10
+const labelOffsetY = 10
+
 const createNetwork = (data) => {
     // Initializes the D3 graph
 
@@ -89,8 +96,11 @@ const createNetwork = (data) => {
         .append("g")
         .selectAll()
         .data(nodes)
-        .join("circle")
-        .attr("r", 20)
+        .join(nodeShape)
+        .attr("rx", nodeBorderRadius)
+        .attr("ry", nodeBorderRadius)
+        .attr("width", nodeWidth)
+        .attr("height", 20)
         .attr("fill", (d) => "#fff")
         .on("click", (e, d) => drawNodeDetails(d));
 
@@ -142,8 +152,8 @@ const createNetwork = (data) => {
                 return dist === 0 ? d.target.y : d.target.y - (dy * 14) / dist;
             });
 
-        node.attr("cx", (d) => d.x).attr("cy", (d) => d.y);
-        label.attr("x", (d) => d.x).attr("y", (d) => d.y - 30);
+        node.attr("x", (d) => d.x).attr("y", (d) => d.y);
+        label.attr("x", (d) => d.x).attr("y", (d) => d.y - labelOffsetY);
     }
 
     function dragstarted(event) {
@@ -179,12 +189,12 @@ const updateNetwork = (data) => {
     const currentNodes = {};
     d3.select("#networkDiv")
         .select("g:nth-of-type(2)")
-        .selectAll("circle")
+        .selectAll(nodeShape)
         .each(function (d) {
             if (d && d.id) {
                 currentNodes[d.id] = {
-                    x: parseFloat(d3.select(this).attr("cx")),
-                    y: parseFloat(d3.select(this).attr("cy")),
+                    x: parseFloat(d3.select(this).attr("x")),
+                    y: parseFloat(d3.select(this).attr("y")),
                 };
             }
         });
@@ -295,18 +305,19 @@ const updateNetwork = (data) => {
 
     const node = svg
         .select("g:nth-of-type(2)")
-        .selectAll("circle")
+        .selectAll(nodeShape)
         .data(nodes, (d) => d.id);
 
     node.exit().transition().duration(500).attr("r", 0).remove();
 
     const nodeEnter = node
         .enter()
-        .append("circle")
-        .attr("r", 0)
+        .append(nodeShape)
+        .attr("width", 0)
+        .attr("height", 0)
         .attr("fill", "#fff")
-        .attr("cx", (d) => d.oldX || 0)
-        .attr("cy", (d) => d.oldY || height / 2)
+        .attr("x", (d) => d.oldX || 0)
+        .attr("y", (d) => d.oldY || height / 2)
         .on("click", (e, d) => drawNodeDetails(d));
 
     nodeEnter.append("title").text((d) => d.id);
@@ -323,9 +334,10 @@ const updateNetwork = (data) => {
         .merge(node)
         .transition()
         .duration(1000)
-        .attr("r", 20)
-        .attr("cx", (d) => d.x)
-        .attr("cy", (d) => d.y);
+        .attr("width", nodeWidth)
+        .attr("height", nodeHeight)
+        .attr("x", (d) => d.x)
+        .attr("y", (d) => d.y);
 
     const label = svg
         .select("g.labels")
@@ -341,8 +353,8 @@ const updateNetwork = (data) => {
         .attr("font-size", 10)
         .attr("dy", "0.3em")
         .attr("opacity", 0)
-        .attr("x", (d) => d.oldX || 0)
-        .attr("y", (d) => d.oldY - 30 || height / 2 - 30)
+        .attr("x", (d) => d.oldX + labelOffsetX || 0 + labelOffsetX)
+        .attr("y", (d) => d.oldY - labelOffsetY || height / 2 - labelOffsetY)
         .text((d) => d.id);
 
     labelEnter
@@ -350,8 +362,8 @@ const updateNetwork = (data) => {
         .transition()
         .duration(1000)
         .attr("opacity", 1)
-        .attr("x", (d) => d.x)
-        .attr("y", (d) => d.y - 30);
+        .attr("x", (d) => d.x + labelOffsetX)
+        .attr("y", (d) => d.y - labelOffsetY);
 
     function dragstarted(event) {
         if (!event.active) simulation.alphaTarget(0.3).restart();
@@ -374,7 +386,7 @@ const updateNetwork = (data) => {
 const nodeDetails = (node) => {
     // Creates the details box onClick of a node
 
-    const width = 500;
+    const width = 300;
     const height = 215;
 
     const svg = d3
@@ -382,7 +394,7 @@ const nodeDetails = (node) => {
         .attr("width", width)
         .attr("height", height)
         .attr("viewBox", [0, 0, width, height])
-        .attr("style", "max-width: 100%; height: auto; background: #fff;")
+        .attr("style", "max-width: 100%; height: auto; background: transparent;")
         .attr("id", "nodeDetailsText");
 
     const info = svg
