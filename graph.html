@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Network Visualization with Force Physics</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                margin: 0;
+                padding: 20px;
+                background: #f5f5f5;
+            }
+
+            .container {
+                max-width: 1400px;
+                margin: 0 auto;
+                background: white;
+                border-radius: 12px;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+                overflow: hidden;
+            }
+
+            .header {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                padding: 30px;
+                color: white;
+                text-align: center;
+            }
+
+            .header h1 {
+                margin: 0;
+                font-size: 2.5em;
+                font-weight: 300;
+            }
+
+            .controls {
+                padding: 25px;
+                background: #fafafa;
+                border-bottom: 1px solid #eee;
+                display: flex;
+                justify-content: center;
+                gap: 15px;
+                flex-wrap: wrap;
+            }
+
+            .btn {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                border: none;
+                padding: 12px 25px;
+                border-radius: 25px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 500;
+                transition: all 0.3s ease;
+                box-shadow: 0 2px 10px rgba(102, 126, 234, 0.3);
+            }
+
+            .btn:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+            }
+
+            .btn:disabled {
+                background: #ccc;
+                cursor: not-allowed;
+                transform: none;
+                box-shadow: none;
+            }
+
+            .visualization-area {
+                padding: 25px;
+                display: flex;
+                gap: 25px;
+            }
+
+            .network-container {
+                flex: 1;
+                position: relative;
+            }
+
+            canvas {
+                border: 2px solid #e0e0e0;
+                border-radius: 8px;
+                background: #fafafa;
+                box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.05);
+            }
+
+            .details-panel {
+                width: 300px;
+                background: #f9f9f9;
+                border-radius: 8px;
+                padding: 20px;
+                border: 1px solid #e0e0e0;
+                max-height: 600px;
+                overflow-y: auto;
+            }
+
+            .details-panel h3 {
+                margin-top: 0;
+                color: #333;
+                border-bottom: 2px solid #667eea;
+                padding-bottom: 10px;
+            }
+
+            .node-detail {
+                background: white;
+                padding: 15px;
+                border-radius: 8px;
+                margin-bottom: 15px;
+                border-left: 4px solid #667eea;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            }
+
+            .node-detail h4 {
+                margin: 0 0 10px 0;
+                color: #333;
+            }
+
+            .layer-info {
+                background: #e8f2ff;
+                padding: 15px;
+                border-radius: 8px;
+                margin-bottom: 20px;
+                border: 1px solid #b3d9ff;
+            }
+
+            .status {
+                font-size: 0.9em;
+                color: #666;
+                margin-bottom: 10px;
+            }
+        </style>
+    </head>
+    <body>
+        <script type="text/python">
+            import main
+            main.main()
+        </script>
+        <div class="container">
+            <div class="header">
+                <h1>Network Visualization</h1>
+                <p>Interactive force-directed graph with layered exploration</p>
+            </div>
+
+            <div class="controls">
+                <input type="file" id="upload_file" class="btn" />
+                <button class="btn" onclick="loadSampleData()">
+                    Load Sample Data
+                </button>
+                <button class="btn" onclick="regenerateLayout()">
+                    Regenerate Layout
+                </button>
+                <button
+                    class="btn"
+                    id="stepBackBtn"
+                    onclick="stepBack()"
+                    disabled
+                >
+                    ← Previous Layer
+                </button>
+                <button
+                    class="btn"
+                    id="stepForwardBtn"
+                    onclick="stepForward()"
+                    disabled
+                >
+                    Next Layer →
+                </button>
+                <button class="btn" onclick="resetVisualization()">
+                    Reset
+                </button>
+            </div>
+
+            <div class="visualization-area">
+                <div class="network-container">
+                    <canvas
+                        id="networkCanvas"
+                        width="1000"
+                        height="600"
+                    ></canvas>
+                </div>
+                <div class="details-panel">
+                    <div class="layer-info">
+                        <h3>Layer Information</h3>
+                        <div class="status" id="layerStatus">
+                            No data loaded
+                        </div>
+                    </div>
+                    <div id="nodeDetails">
+                        <h3>Node Details</h3>
+                        <p>Click on a node to see details</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            // Global variables
+            let simulation;
+            let canvas, context;
+            let networkData = null;
+            let visibleLayers = -1;
+            let maxLayers = 0;
+            let nodes = [];
+            let links = [];
+            let transform = d3.zoomIdentity;
+
+            const width = 1000;
+            const height = 600;
+            const nodeRadius = 6;
+
+            // Initialize
+            function init() {
+                canvas = d3.select("#networkCanvas");
+                context = canvas.node().getContext("2d");
+
+                // Setup zoom and drag
+                canvas.call(d3.zoom().scaleExtent([0.1, 4]).on("zoom", zoomed));
+
+                canvas.on("click", handleCanvasClick);
+            }
+
+            function zoomed(event) {
+                transform = event.transform;
+                drawNetwork();
+            }
+
+            function handleCanvasClick(event) {
+                const [mouseX, mouseY] = d3.pointer(event);
+                const [x, y] = transform.invert([mouseX, mouseY]);
+
+                // Find clicked node
+                const clickedNode = nodes.find((node) => {
+                    if (!node.visible) return false;
+                    const dx = x - node.x;
+                    const dy = y - node.y;
+                    return Math.sqrt(dx * dx + dy * dy) < nodeRadius + 5;
+                });
+
+                if (clickedNode) {
+                    showNodeDetails(clickedNode);
+                }
+            }
+
+            function loadSampleData() {
+                // Generate sample data similar to the Python structure
+                // networkData = {
+                //     nodes: [
+                //         {
+                //             id: "start",
+                //             group: 0,
+                //             precondition: ["initial_state"],
+                //             effect: ["ready"],
+                //         },
+                //         {
+                //             id: "action_1",
+                //             group: 1,
+                //             precondition: ["ready"],
+                //             effect: ["step1_done"],
+                //         },
+                //         {
+                //             id: "action_2",
+                //             group: 1,
+                //             precondition: ["ready"],
+                //             effect: ["step2_done"],
+                //         },
+                //         {
+                //             id: "action_3",
+                //             group: 2,
+                //             precondition: ["step1_done", "step2_done"],
+                //             effect: ["combined"],
+                //         },
+                //         {
+                //             id: "action_4",
+                //             group: 2,
+                //             precondition: ["step1_done"],
+                //             effect: ["branch_a"],
+                //         },
+                //         {
+                //             id: "action_5",
+                //             group: 3,
+                //             precondition: ["combined"],
+                //             effect: ["final_state"],
+                //         },
+                //         {
+                //             id: "goal",
+                //             group: 4,
+                //             precondition: ["final_state"],
+                //             effect: ["completed"],
+                //         },
+                //     ],
+                //     links: [
+                //         { source: "start", target: "action_1" },
+                //         { source: "start", target: "action_2" },
+                //         { source: "action_1", target: "action_3" },
+                //         { source: "action_2", target: "action_3" },
+                //         { source: "action_1", target: "action_4" },
+                //         { source: "action_3", target: "action_5" },
+                //         { source: "action_5", target: "goal" },
+                //     ],
+                //     is_forward: true,
+                // };
+                networkData = JSON.parse(
+                    window.localStorage.getItem("scoping_data")
+                );
+
+                maxLayers = Math.max(...networkData.nodes.map((n) => n.group));
+                visibleLayers = -1;
+                updateButtons();
+                updateLayerStatus();
+            }
+
+            function createNetwork() {
+                if (!networkData) return;
+
+                // Prepare nodes and links
+                nodes = networkData.nodes.map((d) => ({
+                    ...d,
+                    x: width * (0.1 + (0.8 * d.group) / maxLayers),
+                    y: height / 2 + (Math.random() - 0.5) * height * 0.4,
+                    visible: d.group <= visibleLayers,
+                }));
+
+                // Create links between visible nodes
+                const visibleNodeIds = new Set(
+                    nodes.filter((n) => n.visible).map((n) => n.id)
+                );
+                links = networkData.links
+                    .filter(
+                        (l) =>
+                            visibleNodeIds.has(l.source) &&
+                            visibleNodeIds.has(l.target)
+                    )
+                    .map((d) => ({
+                        source: nodes.find((n) => n.id === d.source),
+                        target: nodes.find((n) => n.id === d.target),
+                    }));
+
+                // Create simulation
+                if (simulation) simulation.stop();
+
+                simulation = d3
+                    .forceSimulation(nodes.filter((n) => n.visible))
+                    .force(
+                        "link",
+                        d3
+                            .forceLink(links)
+                            .id((d) => d.id)
+                            .strength(0.8)
+                            .distance(80)
+                    )
+                    .force("charge", d3.forceManyBody().strength(-300))
+                    .force(
+                        "x",
+                        d3
+                            .forceX(
+                                (d) =>
+                                    width * (0.1 + (0.8 * d.group) / maxLayers)
+                            )
+                            .strength(1.5)
+                    )
+                    .force("y", d3.forceY(height / 2).strength(0.3))
+                    .force("collision", d3.forceCollide(nodeRadius + 2))
+                    .on("tick", drawNetwork);
+            }
+
+            function drawNetwork() {
+                context.save();
+                context.clearRect(0, 0, width, height);
+                context.translate(transform.x, transform.y);
+                context.scale(transform.k, transform.k);
+
+                // Draw links
+                context.beginPath();
+                context.strokeStyle = "#999";
+                context.lineWidth = 1.5;
+                links.forEach((link) => {
+                    if (link.source.visible && link.target.visible) {
+                        context.moveTo(link.source.x, link.source.y);
+                        context.lineTo(link.target.x, link.target.y);
+                    }
+                });
+                context.stroke();
+
+                // Draw arrowheads
+                context.fillStyle = "#666";
+                links.forEach((link) => {
+                    if (link.source.visible && link.target.visible) {
+                        drawArrowhead(context, link.source, link.target);
+                    }
+                });
+
+                // Draw nodes
+                nodes.forEach((node) => {
+                    if (node.visible) {
+                        // Node circle
+                        context.beginPath();
+                        context.arc(node.x, node.y, nodeRadius, 0, 2 * Math.PI);
+                        context.fillStyle = getNodeColor(node.group);
+                        context.fill();
+                        context.strokeStyle = "#333";
+                        context.lineWidth = 2;
+                        context.stroke();
+
+                        // Node label
+                        context.fillStyle = "#333";
+                        context.font = "11px Arial";
+                        context.textAlign = "center";
+                        context.fillText(
+                            node.id,
+                            node.x,
+                            node.y - nodeRadius - 5
+                        );
+                    }
+                });
+
+                context.restore();
+            }
+
+            function drawArrowhead(context, source, target) {
+                const dx = target.x - source.x;
+                const dy = target.y - source.y;
+                const angle = Math.atan2(dy, dx);
+                const length = Math.sqrt(dx * dx + dy * dy);
+
+                // Position arrowhead at edge of target node
+                const arrowX = target.x - (dx * nodeRadius) / length;
+                const arrowY = target.y - (dy * nodeRadius) / length;
+
+                const arrowLength = 8;
+                const arrowWidth = 5;
+
+                context.beginPath();
+                context.moveTo(arrowX, arrowY);
+                context.lineTo(
+                    arrowX - arrowLength * Math.cos(angle - arrowWidth),
+                    arrowY - arrowLength * Math.sin(angle - arrowWidth)
+                );
+                context.lineTo(
+                    arrowX - arrowLength * Math.cos(angle + arrowWidth),
+                    arrowY - arrowLength * Math.sin(angle + arrowWidth)
+                );
+                context.closePath();
+                context.fill();
+            }
+
+            function getNodeColor(group) {
+                const colors = [
+                    "#ff6b6b",
+                    "#4ecdc4",
+                    "#45b7d1",
+                    "#96ceb4",
+                    "#feca57",
+                    "#ff9ff3",
+                    "#54a0ff",
+                ];
+                return colors[group % colors.length];
+            }
+
+            function stepForward() {
+                if (visibleLayers < maxLayers) {
+                    visibleLayers++;
+                    createNetwork();
+                    updateButtons();
+                    updateLayerStatus();
+                }
+            }
+
+            function stepBack() {
+                if (visibleLayers >= 0) {
+                    visibleLayers--;
+                    createNetwork();
+                    updateButtons();
+                    updateLayerStatus();
+                }
+            }
+
+            function updateButtons() {
+                document.getElementById("stepBackBtn").disabled =
+                    visibleLayers < 0;
+                document.getElementById("stepForwardBtn").disabled =
+                    visibleLayers >= maxLayers || !networkData;
+            }
+
+            function updateLayerStatus() {
+                const status = document.getElementById("layerStatus");
+                if (!networkData) {
+                    status.textContent = "No data loaded";
+                    return;
+                }
+
+                const visibleNodes = nodes.filter((n) => n.visible).length;
+                const totalNodes = nodes.length;
+                status.innerHTML = `
+                <strong>Current Layer:</strong> ${visibleLayers + 1} / ${
+                    maxLayers + 1
+                }<br>
+                <strong>Visible Nodes:</strong> ${visibleNodes} / ${totalNodes}<br>
+                <strong>Direction:</strong> ${
+                    networkData.is_forward ? "Forward" : "Backward"
+                }
+            `;
+            }
+
+            function showNodeDetails(node) {
+                const detailsDiv = document.getElementById("nodeDetails");
+                const preconditions = node.precondition
+                    ? node.precondition.join(", ")
+                    : "None";
+                const effects = node.effect ? node.effect.join(", ") : "None";
+
+                detailsDiv.innerHTML = `
+                <h3>Node Details</h3>
+                <div class="node-detail">
+                    <h4>${node.id}</h4>
+                    <p><strong>Layer:</strong> ${node.group}</p>
+                    <p><strong>Preconditions:</strong><br>${preconditions}</p>
+                    <p><strong>Effects:</strong><br>${effects}</p>
+                </div>
+            `;
+            }
+
+            function resetVisualization() {
+                visibleLayers = -1;
+                if (networkData) {
+                    createNetwork();
+                    updateButtons();
+                    updateLayerStatus();
+                }
+            }
+
+            function regenerateLayout() {
+                if (networkData) {
+                    // Add some randomness to positions
+                    nodes.forEach((node) => {
+                        if (node.visible) {
+                            node.x += (Math.random() - 0.5) * 100;
+                            node.y += (Math.random() - 0.5) * 100;
+                        }
+                    });
+
+                    if (simulation) {
+                        simulation.alpha(1).restart();
+                    }
+                }
+            }
+
+            // Initialize on load
+            window.onload = function () {
+                init();
+                updateButtons();
+            };
+        </script>
+    </body>
+</html>
