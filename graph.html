@@ -141,25 +141,29 @@
         </script>
         <div class="container">
             <div class="header">
-                <h1>Network Visualization</h1>
-                <p>Interactive force-directed graph with layered exploration</p>
+                <h1>Task Scoping</h1>
+                <p>Visualization tool for task scoping</p>
             </div>
 
             <div class="controls">
-                <input type="file" id="upload_file" class="btn" />
-                <button class="btn" onclick="loadSampleData()">
-                    Load Sample Data
-                </button>
-                <button class="btn" onclick="regenerateLayout()">
+                <input
+                    type="file"
+                    id="upload_file"
+                    class="btn"
+                    onchange="loadData()"
+                    accept=".sas"
+                />
+                <!-- <button class="btn" onclick="loadData()">Load Data</button> -->
+                <!-- <button class="btn" onclick="regenerateLayout()">
                     Regenerate Layout
-                </button>
+                </button> -->
                 <button
                     class="btn"
                     id="stepBackBtn"
                     onclick="stepBack()"
                     disabled
                 >
-                    ← Previous Layer
+                    &larr;
                 </button>
                 <button
                     class="btn"
@@ -167,7 +171,7 @@
                     onclick="stepForward()"
                     disabled
                 >
-                    Next Layer →
+                    &rarr;
                 </button>
                 <button class="btn" onclick="resetVisualization()">
                     Reset
@@ -245,7 +249,7 @@
                 }
             }
 
-            function loadSampleData() {
+            function loadData() {
                 networkData = JSON.parse(
                     window.localStorage.getItem("scoping_data")
                 );
@@ -305,7 +309,7 @@
                             .strength((d) => {
                                 // Weaker links for invisible nodes
                                 return d.source.visible && d.target.visible
-                                    ? 0.8
+                                    ? 0.6
                                     : 0.1;
                             })
                             .distance((d) => {
@@ -319,7 +323,7 @@
                         "charge",
                         d3.forceManyBody().strength((d) => {
                             // Weaker repulsion for invisible nodes
-                            return d.visible ? -300 : -50;
+                            return d.visible ? -200 : -50;
                         })
                     )
                     .force(
@@ -337,22 +341,54 @@
                                     return leftClusterX;
                                 }
                             })
-                            .strength((d) => (d.visible ? 1.5 : 2.0))
+                            .strength((d) => (d.visible ? 2.5 : 2.0))
                     )
                     .force(
                         "y",
                         d3.forceY(height / 2).strength((d) => {
-                            // Stronger vertical centering for invisible nodes
-                            return d.visible ? 0.3 : 0.8;
+                            // Weaker vertical centering for visible nodes to allow spreading
+                            return d.visible ? 0.1 : 0.8;
                         })
                     )
                     .force(
                         "collision",
                         d3.forceCollide((d) => {
-                            // Smaller collision radius for invisible nodes
-                            return d.visible ? nodeRadius + 2 : nodeRadius + 1;
+                            // Larger collision radius for better spacing
+                            return d.visible ? nodeRadius + 8 : nodeRadius + 1;
                         })
                     )
+                    .force("sameLayerRepulsion", () => {
+                        // Custom force for same-layer node repulsion
+                        nodes.forEach((nodeA) => {
+                            if (!nodeA.visible) return;
+
+                            nodes.forEach((nodeB) => {
+                                if (
+                                    !nodeB.visible ||
+                                    nodeA === nodeB ||
+                                    nodeA.group !== nodeB.group
+                                )
+                                    return;
+
+                                const dx = nodeB.x - nodeA.x;
+                                const dy = nodeB.y - nodeA.y;
+                                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                                if (distance < 150) {
+                                    // Apply repulsion within 150px
+                                    const force =
+                                        ((150 - distance) / distance) * 0.3;
+                                    const fx = dx * force;
+                                    const fy = dy * force;
+
+                                    nodeA.vx -= fx;
+                                    nodeA.vy -= fy;
+                                    nodeB.vx += fx;
+                                    nodeB.vy += fy;
+                                }
+                            });
+                        });
+                    })
                     .on("tick", drawNetwork);
 
                 // Restart the simulation with higher alpha for smooth transitions
@@ -543,27 +579,27 @@
                 }
             }
 
-            function regenerateLayout() {
-                if (networkData) {
-                    // Add some randomness to positions
-                    nodes.forEach((node) => {
-                        if (node.visible) {
-                            node.x += (Math.random() - 0.5) * 100;
-                            node.y += (Math.random() - 0.5) * 100;
-                        } else {
-                            // Keep invisible nodes clustered on the left with some variation
-                            node.x = leftClusterX + (Math.random() - 0.5) * 60;
-                            node.y =
-                                height / 2 +
-                                (Math.random() - 0.5) * height * 0.6;
-                        }
-                    });
+            // function regenerateLayout() {
+            //     if (networkData) {
+            //         // Add some randomness to positions
+            //         nodes.forEach((node) => {
+            //             if (node.visible) {
+            //                 node.x += (Math.random() - 0.5) * 100;
+            //                 node.y += (Math.random() - 0.5) * 100;
+            //             } else {
+            //                 // Keep invisible nodes clustered on the left with some variation
+            //                 node.x = leftClusterX + (Math.random() - 0.5) * 60;
+            //                 node.y =
+            //                     height / 2 +
+            //                     (Math.random() - 0.5) * height * 0.6;
+            //             }
+            //         });
 
-                    if (simulation) {
-                        simulation.alpha(1).restart();
-                    }
-                }
-            }
+            //         if (simulation) {
+            //             simulation.alpha(1).restart();
+            //         }
+            //     }
+            // }
 
             // Initialize on load
             window.onload = function () {
