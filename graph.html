@@ -249,6 +249,19 @@
                 }
             }
 
+            // Helper function to check if a node has any connections
+            function hasConnections(nodeId, links) {
+                return links.some(
+                    (link) =>
+                        link.source === nodeId ||
+                        link.target === nodeId ||
+                        (typeof link.source === "object" &&
+                            link.source.id === nodeId) ||
+                        (typeof link.target === "object" &&
+                            link.target.id === nodeId)
+                );
+            }
+
             function loadData() {
                 networkData = JSON.parse(
                     window.localStorage.getItem("scoping_data")
@@ -273,6 +286,12 @@
                 // If this is the first time, initialize nodes with positions
                 if (nodes.length === 0) {
                     nodes = networkData.nodes.map((d, index) => {
+                        // Check if this node has any connections
+                        const isIsolated = !hasConnections(
+                            d.id,
+                            networkData.links
+                        );
+
                         // Start all nodes in the left cluster
                         return {
                             ...d,
@@ -281,12 +300,18 @@
                                 height / 2 +
                                 (Math.random() - 0.5) * height * 0.6,
                             visible: d.group <= visibleLayers,
+                            isolated: isIsolated, // Mark nodes that have no connections
                         };
                     });
                 } else {
                     // Update visibility status for existing nodes
                     nodes.forEach((node) => {
                         node.visible = node.group <= visibleLayers;
+                        // Update isolation status in case data changed
+                        node.isolated = !hasConnections(
+                            node.id,
+                            networkData.links
+                        );
                     });
                 }
 
@@ -322,49 +347,58 @@
                     .force(
                         "charge",
                         d3.forceManyBody().strength((d) => {
-                            // Weaker repulsion for invisible nodes
-                            return d.visible ? -200 : -50;
+                            // Weaker repulsion for invisible or isolated nodes
+                            return d.visible && !d.isolated ? -200 : -50;
                         })
                     )
                     .force(
                         "x",
                         d3
                             .forceX((d) => {
-                                if (d.visible) {
-                                    // Visible nodes: positioned based on layer (right to left)
+                                // Isolated nodes stay on the left regardless of visibility
+                                if (d.isolated || !d.visible) {
+                                    return leftClusterX;
+                                } else {
+                                    // Visible connected nodes: positioned based on layer (right to left)
                                     return (
                                         width *
                                         (0.9 - (0.8 * d.group) / maxLayers)
                                     );
-                                } else {
-                                    // Invisible nodes: cluster on the left
-                                    return leftClusterX;
                                 }
                             })
-                            .strength((d) => (d.visible ? 2.5 : 2.0))
+                            .strength((d) => {
+                                // Strong positioning for isolated nodes to keep them clustered
+                                if (d.isolated) return 3.0;
+                                return d.visible ? 2.5 : 2.0;
+                            })
                     )
                     .force(
                         "y",
                         d3.forceY(height / 2).strength((d) => {
-                            // Weaker vertical centering for visible nodes to allow spreading
+                            // Stronger vertical centering for isolated nodes
+                            if (d.isolated) return 1.0;
+                            // Weaker vertical centering for visible connected nodes to allow spreading
                             return d.visible ? 0.1 : 0.8;
                         })
                     )
                     .force(
                         "collision",
                         d3.forceCollide((d) => {
-                            // Larger collision radius for better spacing
+                            // Smaller collision radius for isolated nodes to pack them tighter
+                            if (d.isolated) return nodeRadius + 2;
+                            // Larger collision radius for connected nodes for better spacing
                             return d.visible ? nodeRadius + 8 : nodeRadius + 1;
                         })
                     )
                     .force("sameLayerRepulsion", () => {
-                        // Custom force for same-layer node repulsion
+                        // Custom force for same-layer node repulsion (only for connected nodes)
                         nodes.forEach((nodeA) => {
-                            if (!nodeA.visible) return;
+                            if (!nodeA.visible || nodeA.isolated) return;
 
                             nodes.forEach((nodeB) => {
                                 if (
                                     !nodeB.visible ||
+                                    nodeB.isolated ||
                                     nodeA === nodeB ||
                                     nodeA.group !== nodeB.group
                                 )
@@ -427,12 +461,16 @@
                     context.beginPath();
                     context.arc(node.x, node.y, nodeRadius, 0, 2 * Math.PI);
 
-                    if (node.visible) {
-                        // Visible nodes: full color and opacity
+                    if (node.visible && !node.isolated) {
+                        // Visible connected nodes: full color and opacity
                         context.fillStyle = getNodeColor(node.group);
                         context.globalAlpha = 1.0;
+                    } else if (node.isolated) {
+                        // Isolated nodes: slightly different styling
+                        context.fillStyle = "#888"; // Gray color for isolated nodes
+                        context.globalAlpha = node.visible ? 0.8 : 0.6;
                     } else {
-                        // Invisible nodes: same color but slightly reduced opacity
+                        // Invisible nodes: same color but reduced opacity
                         context.fillStyle = getNodeColor(node.group);
                         context.globalAlpha = 0.7;
                     }
@@ -532,11 +570,14 @@
 
                 const visibleNodes = nodes.filter((n) => n.visible).length;
                 const totalNodes = nodes.length;
+                const isolatedNodes = nodes.filter((n) => n.isolated).length;
+
                 status.innerHTML = `
                 <strong>Current Layer:</strong> ${visibleLayers + 1} / ${
                     maxLayers + 1
                 }<br>
                 <strong>Visible Nodes:</strong> ${visibleNodes} / ${totalNodes}<br>
+                <strong>Isolated Nodes:</strong> ${isolatedNodes}<br>
                 <strong>Direction:</strong> ${
                     networkData.is_forward ? "Forward" : "Backward"
                 }
@@ -553,12 +594,14 @@
                 detailsDiv.innerHTML = `
                 <h3>Node Details</h3>
                 <div class="node-detail">
-                    <h4>${node.id} ${
-                    node.visible ? "" : "(Not Yet Visible)"
+                    <h4>${node.id} ${node.visible ? "" : "(Not Yet Visible)"}${
+                    node.isolated ? " (Isolated)" : ""
                 }</h4>
                     <p><strong>Layer:</strong> ${node.group}</p>
                     <p><strong>Status:</strong> ${
-                        node.visible
+                        node.isolated
+                            ? "Isolated (no connections)"
+                            : node.visible
                             ? "Currently Visible"
                             : "Will be visible at layer " + (node.group + 1)
                     }</p>
@@ -578,28 +621,6 @@
                     updateLayerStatus();
                 }
             }
-
-            // function regenerateLayout() {
-            //     if (networkData) {
-            //         // Add some randomness to positions
-            //         nodes.forEach((node) => {
-            //             if (node.visible) {
-            //                 node.x += (Math.random() - 0.5) * 100;
-            //                 node.y += (Math.random() - 0.5) * 100;
-            //             } else {
-            //                 // Keep invisible nodes clustered on the left with some variation
-            //                 node.x = leftClusterX + (Math.random() - 0.5) * 60;
-            //                 node.y =
-            //                     height / 2 +
-            //                     (Math.random() - 0.5) * height * 0.6;
-            //             }
-            //         });
-
-            //         if (simulation) {
-            //             simulation.alpha(1).restart();
-            //         }
-            //     }
-            // }
 
             // Initialize on load
             window.onload = function () {
