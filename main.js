@@ -11,7 +11,6 @@ let transform = d3.zoomIdentity;
 const width = 1000;
 const height = 600;
 const nodeRadius = 6;
-const leftClusterX = 80; // Position for invisible nodes to cluster
 
 // Initialize
 function init() {
@@ -56,6 +55,26 @@ function hasConnections(nodeId, links) {
     );
 }
 
+// Helper function to get cluster position based on direction
+function getClusterX() {
+    return networkData && networkData.is_forward ? width - 80 : 80; // Right side for forward, left side for backward
+}
+
+// Helper function to get node X position based on direction and layer
+function getNodeX(node) {
+    if (node.isolated || !node.visible) {
+        return getClusterX();
+    }
+
+    if (networkData.is_forward) {
+        // Forward: root nodes (layer 0) on left, higher layers to the right
+        return width * (0.1 + (0.8 * node.group) / maxLayers);
+    } else {
+        // Backward: root nodes (layer 0) on right, higher layers to the left
+        return width * (0.9 - (0.8 * node.group) / maxLayers);
+    }
+}
+
 function loadData() {
     networkData = JSON.parse(window.localStorage.getItem("scoping_data"));
 
@@ -75,16 +94,18 @@ function loadData() {
 function createNetwork() {
     if (!networkData) return;
 
+    const clusterX = getClusterX();
+
     // If this is the first time, initialize nodes with positions
     if (nodes.length === 0) {
         nodes = networkData.nodes.map((d, index) => {
             // Check if this node has any connections
             const isIsolated = !hasConnections(d.id, networkData.links);
 
-            // Start all nodes in the left cluster
+            // Start all nodes in the cluster
             return {
                 ...d,
-                x: leftClusterX + (Math.random() - 0.5) * 60,
+                x: clusterX + (Math.random() - 0.5) * 60,
                 y: height / 2 + (Math.random() - 0.5) * height * 0.6,
                 visible: d.group <= visibleLayers,
                 isolated: isIsolated, // Mark nodes that have no connections
@@ -134,15 +155,7 @@ function createNetwork() {
         .force(
             "x",
             d3
-                .forceX((d) => {
-                    // Isolated nodes stay on the left regardless of visibility
-                    if (d.isolated || !d.visible) {
-                        return leftClusterX;
-                    } else {
-                        // Visible connected nodes: positioned based on layer (right to left)
-                        return width * (0.9 - (0.8 * d.group) / maxLayers);
-                    }
-                })
+                .forceX((d) => getNodeX(d))
                 .strength((d) => {
                     // Strong positioning for isolated nodes to keep them clustered
                     if (d.isolated) return 3.0;
@@ -274,7 +287,7 @@ function drawArrowhead(context, source, target) {
     const angle = Math.atan2(dy, dx);
     const length = Math.sqrt(dx * dx + dy * dy);
 
-    // Position arrowhead at edge of target node (pointing left)
+    // Position arrowhead at edge of target node
     const arrowX = target.x - (dx * nodeRadius) / length;
     const arrowY = target.y - (dy * nodeRadius) / length;
 
@@ -283,14 +296,29 @@ function drawArrowhead(context, source, target) {
 
     context.beginPath();
     context.moveTo(arrowX, arrowY);
-    context.lineTo(
-        arrowX - arrowLength * Math.cos(angle - arrowWidth),
-        arrowY - arrowLength * Math.sin(angle - arrowWidth)
-    );
-    context.lineTo(
-        arrowX - arrowLength * Math.cos(angle + arrowWidth),
-        arrowY - arrowLength * Math.sin(angle + arrowWidth)
-    );
+
+    if (networkData.is_forward) {
+        // Forward direction: arrows point right (normal direction)
+        context.lineTo(
+            arrowX - arrowLength * Math.cos(angle - arrowWidth),
+            arrowY - arrowLength * Math.sin(angle - arrowWidth)
+        );
+        context.lineTo(
+            arrowX - arrowLength * Math.cos(angle + arrowWidth),
+            arrowY - arrowLength * Math.sin(angle + arrowWidth)
+        );
+    } else {
+        // Backward direction: arrows point left (reversed)
+        context.lineTo(
+            arrowX - arrowLength * Math.cos(angle - arrowWidth),
+            arrowY - arrowLength * Math.sin(angle - arrowWidth)
+        );
+        context.lineTo(
+            arrowX - arrowLength * Math.cos(angle + arrowWidth),
+            arrowY - arrowLength * Math.sin(angle + arrowWidth)
+        );
+    }
+
     context.closePath();
     context.fill();
 }
