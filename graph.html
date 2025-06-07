@@ -211,6 +211,7 @@
             const width = 1000;
             const height = 600;
             const nodeRadius = 6;
+            const leftClusterX = 80; // Position for invisible nodes to cluster
 
             // Initialize
             function init() {
@@ -232,9 +233,8 @@
                 const [mouseX, mouseY] = d3.pointer(event);
                 const [x, y] = transform.invert([mouseX, mouseY]);
 
-                // Find clicked node
+                // Find clicked node (both visible and invisible nodes are clickable)
                 const clickedNode = nodes.find((node) => {
-                    if (!node.visible) return false;
                     const dx = x - node.x;
                     const dy = y - node.y;
                     return Math.sqrt(dx * dx + dy * dy) < nodeRadius + 5;
@@ -246,125 +246,117 @@
             }
 
             function loadSampleData() {
-                // Generate sample data similar to the Python structure
-                // networkData = {
-                //     nodes: [
-                //         {
-                //             id: "start",
-                //             group: 0,
-                //             precondition: ["initial_state"],
-                //             effect: ["ready"],
-                //         },
-                //         {
-                //             id: "action_1",
-                //             group: 1,
-                //             precondition: ["ready"],
-                //             effect: ["step1_done"],
-                //         },
-                //         {
-                //             id: "action_2",
-                //             group: 1,
-                //             precondition: ["ready"],
-                //             effect: ["step2_done"],
-                //         },
-                //         {
-                //             id: "action_3",
-                //             group: 2,
-                //             precondition: ["step1_done", "step2_done"],
-                //             effect: ["combined"],
-                //         },
-                //         {
-                //             id: "action_4",
-                //             group: 2,
-                //             precondition: ["step1_done"],
-                //             effect: ["branch_a"],
-                //         },
-                //         {
-                //             id: "action_5",
-                //             group: 3,
-                //             precondition: ["combined"],
-                //             effect: ["final_state"],
-                //         },
-                //         {
-                //             id: "goal",
-                //             group: 4,
-                //             precondition: ["final_state"],
-                //             effect: ["completed"],
-                //         },
-                //     ],
-                //     links: [
-                //         { source: "start", target: "action_1" },
-                //         { source: "start", target: "action_2" },
-                //         { source: "action_1", target: "action_3" },
-                //         { source: "action_2", target: "action_3" },
-                //         { source: "action_1", target: "action_4" },
-                //         { source: "action_3", target: "action_5" },
-                //         { source: "action_5", target: "goal" },
-                //     ],
-                //     is_forward: true,
-                // };
                 networkData = JSON.parse(
                     window.localStorage.getItem("scoping_data")
                 );
 
                 maxLayers = Math.max(...networkData.nodes.map((n) => n.group));
                 visibleLayers = -1;
+
+                // Reset nodes array to trigger initialization
+                nodes = [];
+
                 updateButtons();
                 updateLayerStatus();
+
+                // Initialize the network
+                createNetwork();
             }
 
             function createNetwork() {
                 if (!networkData) return;
 
-                // Prepare nodes and links
-                nodes = networkData.nodes.map((d) => ({
-                    ...d,
-                    x: width * (0.1 + (0.8 * d.group) / maxLayers),
-                    y: height / 2 + (Math.random() - 0.5) * height * 0.4,
-                    visible: d.group <= visibleLayers,
+                // If this is the first time, initialize nodes with positions
+                if (nodes.length === 0) {
+                    nodes = networkData.nodes.map((d, index) => {
+                        // Start all nodes in the left cluster
+                        return {
+                            ...d,
+                            x: leftClusterX + (Math.random() - 0.5) * 60,
+                            y:
+                                height / 2 +
+                                (Math.random() - 0.5) * height * 0.6,
+                            visible: d.group <= visibleLayers,
+                        };
+                    });
+                } else {
+                    // Update visibility status for existing nodes
+                    nodes.forEach((node) => {
+                        node.visible = node.group <= visibleLayers;
+                    });
+                }
+
+                // Create links between all nodes (including invisible ones)
+                links = networkData.links.map((d) => ({
+                    source: nodes.find((n) => n.id === d.source),
+                    target: nodes.find((n) => n.id === d.target),
                 }));
 
-                // Create links between visible nodes
-                const visibleNodeIds = new Set(
-                    nodes.filter((n) => n.visible).map((n) => n.id)
-                );
-                links = networkData.links
-                    .filter(
-                        (l) =>
-                            visibleNodeIds.has(l.source) &&
-                            visibleNodeIds.has(l.target)
-                    )
-                    .map((d) => ({
-                        source: nodes.find((n) => n.id === d.source),
-                        target: nodes.find((n) => n.id === d.target),
-                    }));
-
-                // Create simulation
+                // Create simulation with all nodes
                 if (simulation) simulation.stop();
 
                 simulation = d3
-                    .forceSimulation(nodes.filter((n) => n.visible))
+                    .forceSimulation(nodes)
                     .force(
                         "link",
                         d3
                             .forceLink(links)
                             .id((d) => d.id)
-                            .strength(0.8)
-                            .distance(80)
+                            .strength((d) => {
+                                // Weaker links for invisible nodes
+                                return d.source.visible && d.target.visible
+                                    ? 0.8
+                                    : 0.1;
+                            })
+                            .distance((d) => {
+                                // Shorter distances for invisible nodes
+                                return d.source.visible && d.target.visible
+                                    ? 80
+                                    : 20;
+                            })
                     )
-                    .force("charge", d3.forceManyBody().strength(-300))
+                    .force(
+                        "charge",
+                        d3.forceManyBody().strength((d) => {
+                            // Weaker repulsion for invisible nodes
+                            return d.visible ? -300 : -50;
+                        })
+                    )
                     .force(
                         "x",
                         d3
-                            .forceX(
-                                (d) =>
-                                    width * (0.1 + (0.8 * d.group) / maxLayers)
-                            )
-                            .strength(1.5)
+                            .forceX((d) => {
+                                if (d.visible) {
+                                    // Visible nodes: positioned based on layer (right to left)
+                                    return (
+                                        width *
+                                        (0.9 - (0.8 * d.group) / maxLayers)
+                                    );
+                                } else {
+                                    // Invisible nodes: cluster on the left
+                                    return leftClusterX;
+                                }
+                            })
+                            .strength((d) => (d.visible ? 1.5 : 2.0))
                     )
-                    .force("y", d3.forceY(height / 2).strength(0.3))
-                    .force("collision", d3.forceCollide(nodeRadius + 2))
+                    .force(
+                        "y",
+                        d3.forceY(height / 2).strength((d) => {
+                            // Stronger vertical centering for invisible nodes
+                            return d.visible ? 0.3 : 0.8;
+                        })
+                    )
+                    .force(
+                        "collision",
+                        d3.forceCollide((d) => {
+                            // Smaller collision radius for invisible nodes
+                            return d.visible ? nodeRadius + 2 : nodeRadius + 1;
+                        })
+                    )
                     .on("tick", drawNetwork);
+
+                // Restart the simulation with higher alpha for smooth transitions
+                simulation.alpha(0.8).restart();
             }
 
             function drawNetwork() {
@@ -373,7 +365,7 @@
                 context.translate(transform.x, transform.y);
                 context.scale(transform.k, transform.k);
 
-                // Draw links
+                // Draw links (only between visible nodes)
                 context.beginPath();
                 context.strokeStyle = "#999";
                 context.lineWidth = 1.5;
@@ -385,7 +377,7 @@
                 });
                 context.stroke();
 
-                // Draw arrowheads
+                // Draw arrowheads (only for visible links)
                 context.fillStyle = "#666";
                 links.forEach((link) => {
                     if (link.source.visible && link.target.visible) {
@@ -393,30 +385,36 @@
                     }
                 });
 
-                // Draw nodes
+                // Draw all nodes (visible and invisible)
                 nodes.forEach((node) => {
-                    if (node.visible) {
-                        // Node circle
-                        context.beginPath();
-                        context.arc(node.x, node.y, nodeRadius, 0, 2 * Math.PI);
-                        context.fillStyle = getNodeColor(node.group);
-                        context.fill();
-                        context.strokeStyle = "#333";
-                        context.lineWidth = 2;
-                        context.stroke();
+                    // Node circle
+                    context.beginPath();
+                    context.arc(node.x, node.y, nodeRadius, 0, 2 * Math.PI);
 
-                        // Node label
-                        context.fillStyle = "#333";
-                        context.font = "11px Arial";
-                        context.textAlign = "center";
-                        context.fillText(
-                            node.id,
-                            node.x,
-                            node.y - nodeRadius - 5
-                        );
+                    if (node.visible) {
+                        // Visible nodes: full color and opacity
+                        context.fillStyle = getNodeColor(node.group);
+                        context.globalAlpha = 1.0;
+                    } else {
+                        // Invisible nodes: same color but slightly reduced opacity
+                        context.fillStyle = getNodeColor(node.group);
+                        context.globalAlpha = 0.7;
                     }
+
+                    context.fill();
+                    context.strokeStyle = node.visible ? "#333" : "#555";
+                    context.lineWidth = node.visible ? 2 : 1.5;
+                    context.stroke();
+
+                    // Node label (for both visible and invisible nodes)
+                    context.globalAlpha = node.visible ? 1.0 : 0.8;
+                    context.fillStyle = "#333";
+                    context.font = "11px Arial";
+                    context.textAlign = "center";
+                    context.fillText(node.id, node.x, node.y - nodeRadius - 5);
                 });
 
+                context.globalAlpha = 1.0; // Reset alpha
                 context.restore();
             }
 
@@ -426,12 +424,12 @@
                 const angle = Math.atan2(dy, dx);
                 const length = Math.sqrt(dx * dx + dy * dy);
 
-                // Position arrowhead at edge of target node
+                // Position arrowhead at edge of target node (pointing left)
                 const arrowX = target.x - (dx * nodeRadius) / length;
                 const arrowY = target.y - (dy * nodeRadius) / length;
 
-                const arrowLength = 8;
-                const arrowWidth = 5;
+                const arrowLength = 10;
+                const arrowWidth = 0.4;
 
                 context.beginPath();
                 context.moveTo(arrowX, arrowY);
@@ -463,6 +461,8 @@
             function stepForward() {
                 if (visibleLayers < maxLayers) {
                     visibleLayers++;
+
+                    // Smoothly transition newly visible nodes
                     createNetwork();
                     updateButtons();
                     updateLayerStatus();
@@ -472,6 +472,8 @@
             function stepBack() {
                 if (visibleLayers >= 0) {
                     visibleLayers--;
+
+                    // Smoothly transition nodes back to cluster
                     createNetwork();
                     updateButtons();
                     updateLayerStatus();
@@ -515,8 +517,15 @@
                 detailsDiv.innerHTML = `
                 <h3>Node Details</h3>
                 <div class="node-detail">
-                    <h4>${node.id}</h4>
+                    <h4>${node.id} ${
+                    node.visible ? "" : "(Not Yet Visible)"
+                }</h4>
                     <p><strong>Layer:</strong> ${node.group}</p>
+                    <p><strong>Status:</strong> ${
+                        node.visible
+                            ? "Currently Visible"
+                            : "Will be visible at layer " + (node.group + 1)
+                    }</p>
                     <p><strong>Preconditions:</strong><br>${preconditions}</p>
                     <p><strong>Effects:</strong><br>${effects}</p>
                 </div>
@@ -526,6 +535,8 @@
             function resetVisualization() {
                 visibleLayers = -1;
                 if (networkData) {
+                    // Reset nodes to trigger re-initialization
+                    nodes = [];
                     createNetwork();
                     updateButtons();
                     updateLayerStatus();
@@ -539,6 +550,12 @@
                         if (node.visible) {
                             node.x += (Math.random() - 0.5) * 100;
                             node.y += (Math.random() - 0.5) * 100;
+                        } else {
+                            // Keep invisible nodes clustered on the left with some variation
+                            node.x = leftClusterX + (Math.random() - 0.5) * 60;
+                            node.y =
+                                height / 2 +
+                                (Math.random() - 0.5) * height * 0.6;
                         }
                     });
 
