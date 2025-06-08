@@ -50,7 +50,6 @@ const hasConnections = (nodeId, links) => {
 };
 
 const getClusterX = () => {
-    console.log(networkData.is_forward);
     return networkData && networkData.is_forward ? width - 80 : 80;
 };
 
@@ -333,6 +332,7 @@ const showNodeDetails = (node) => {
     const effects = node.effect ? node.effect.join(", ") : "None";
 
     detailsDiv.innerHTML = `
+                <h3>Node Details</h3>
                 <h4>${node.id}</h4>
                 <p><strong>Preconditions:</strong><br>${preconditions}</p>
                 <p><strong>Effects:</strong><br>${effects || "None"}</p>
@@ -344,4 +344,8 @@ const load = () => {
     updateButtons();
     loadData();
     isLoad = false;
+
+    document.getElementById("start").style.display = "none";
+    document.getElementById("next").style.display = "flex";
+    document.getElementById("prev").style.display = "flex";
 };

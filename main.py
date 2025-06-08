@@ -19,6 +19,7 @@ ENABLE_MERGING = document["enable_merging"]
 ENABLE_FACT_BASED = document["enable_fact_based"]
 ENABLE_FORWARD_PASS = document["enable_forward_pass"]
 ENABLE_LOOP = document["enable_loop"]
+START_BTN = document["start"]
 NEXT_BTN = document["next"]
 PREV_BTN = document["prev"]
 
@@ -84,6 +85,7 @@ def file_read(ev):
     reader = window.FileReader.new()
     reader.readAsText(file)
     reader.bind("load", onload)
+    START_BTN.disabled = False
 
 
 def read_sas(sas_file):
@@ -152,7 +154,6 @@ def toggle_fact_based(ev):
 
 @bind(ENABLE_FORWARD_PASS, "click")
 def toggle_forward_pass(ev):
-    print("pressed")
     scoping_options.enable_forward_pass = not scoping_options.enable_forward_pass
     update_sas()
     NEXT_BTN.disabled = False

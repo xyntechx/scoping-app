@@ -119,7 +119,7 @@
                 justify-content: center;
                 align-items: start;
                 flex-direction: column;
-                row-gap: 0.2rem;
+                row-gap: 0.5rem;
             }
 
             .grayText {
@@ -214,11 +214,25 @@
                     class="upload"
                     accept=".sas"
                 />
-                <button id="load" onclick="load()" class="btn">Load</button>
-                <button id="prev" onclick="stepBack()" disabled class="btn">
+                <button id="start" onclick="load()" disabled class="btn">
+                    Start
+                </button>
+                <button
+                    id="prev"
+                    onclick="stepBack()"
+                    disabled
+                    class="btn"
+                    style="display: none"
+                >
                     &larr;
                 </button>
-                <button id="next" onclick="stepForward()" disabled class="btn">
+                <button
+                    id="next"
+                    onclick="stepForward()"
+                    disabled
+                    class="btn"
+                    style="display: none"
+                >
                     &rarr;
                 </button>
                 <a id="download_file" href="#" download class="btn">
@@ -270,12 +284,11 @@
                         </div>
 
                         <div class="switchContainer">
-                            <label
-                                
-                                class="switch"
-                                onclick="isLoad = true"
-                            >
-                                <input type="checkbox" id="enable_forward_pass" />
+                            <label class="switch" onclick="isLoad = true">
+                                <input
+                                    type="checkbox"
+                                    id="enable_forward_pass"
+                                />
                                 <span class="slider round"></span>
                             </label>
                             <p>Forward Pass</p>
@@ -289,11 +302,9 @@
                             <p>Loop</p>
                         </div>
                     </div>
-                    <div class="textContainer">
+                    <div class="textContainer" id="nodeDetails">
                         <h3>Node Details</h3>
-                        <div class="grayText" id="nodeDetails">
-                            Click on a node to see details
-                        </div>
+                        <p class="grayText">Click on a node to see details</p>
                     </div>
                 </div>
             </div>
