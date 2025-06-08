@@ -212,13 +212,13 @@ const drawNetwork = () => {
         context.arc(node.x, node.y, nodeRadius, 0, 2 * Math.PI);
 
         if (node.visible && !node.isolated) {
-            context.fillStyle = getNodeColor(node.group);
+            context.fillStyle = "#2196f3";
             context.globalAlpha = 1.0;
         } else if (node.isolated) {
             context.fillStyle = "#888";
             context.globalAlpha = node.visible ? 0.8 : 0.6;
         } else {
-            context.fillStyle = getNodeColor(node.group);
+            context.fillStyle = "#2196f3";
             context.globalAlpha = 0.7;
         }
 
@@ -275,19 +275,6 @@ const drawArrowhead = (context, source, target) => {
 
     context.closePath();
     context.fill();
-};
-
-const getNodeColor = (group) => {
-    const colors = [
-        "#ff6b6b",
-        "#4ecdc4",
-        "#45b7d1",
-        "#96ceb4",
-        "#feca57",
-        "#ff9ff3",
-        "#54a0ff",
-    ];
-    return colors[group % colors.length];
 };
 
 const stepForward = () => {
