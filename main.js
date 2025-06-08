@@ -1,473 +1,351 @@
-import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
-import "https://esm.sh/d3-transition"; // use .transition() for animations
+let simulation;
+let canvas, context;
+let networkData = null;
+let visibleLayers = -1;
+let maxLayers = 0;
+let nodes = [];
+let links = [];
+let transform = d3.zoomIdentity;
+let isLoad = true;
 
-const createNetwork = (data) => {
-    // Initializes the D3 graph
+const width = 1000;
+const height = 600;
+const nodeRadius = 6;
 
-    const width = 1000;
-    const height = 600;
+const init = () => {
+    canvas = d3.select("#networkCanvas");
+    context = canvas.node().getContext("2d");
+    canvas.call(d3.zoom().scaleExtent([0.1, 4]).on("zoom", zoomed));
+    canvas.on("click", handleCanvasClick);
+};
 
-    const links = data.links.map((d) => ({ ...d }));
-    const nodes = data.nodes.map((d) => ({ ...d }));
+const zoomed = (event) => {
+    transform = event.transform;
+    drawNetwork();
+};
 
-    let xPositionScale; // controls how the x position of each node is determined
+const handleCanvasClick = (event) => {
+    const [mouseX, mouseY] = d3.pointer(event);
+    const [x, y] = transform.invert([mouseX, mouseY]);
 
-    if (data.is_forward) {
-        // when forward pass, nodes with lower group numbers lie more to the left (i.e. init and * are the leftmost nodes)
-        xPositionScale = d3
-            .scaleLinear()
-            .domain([
-                d3.min(nodes, (d) => d.group),
-                d3.max(nodes, (d) => d.group),
-            ])
-            .range([width * 0.2, width * 0.8]);
-    } else {
-        // when backward pass, nodes with lower group numbers lie more to the right (i.e. goal is the rightmost node)
-        xPositionScale = d3
-            .scaleLinear()
-            .domain([
-                d3.max(nodes, (d) => d.group),
-                d3.min(nodes, (d) => d.group),
-            ])
-            .range([width * 0.2, width * 0.8]);
-    }
-
-    nodes.forEach((node) => {
-        // inits x and y positions of all nodes
-        node.x = xPositionScale(node.group); // uses the xPositionScale function defined above
-        node.y = height / 2 + (Math.random() - 0.5) * height * 0.5; // randomly initialized
+    const clickedNode = nodes.find((node) => {
+        const dx = x - node.x;
+        const dy = y - node.y;
+        return Math.sqrt(dx * dx + dy * dy) < nodeRadius + 5;
     });
 
-    const simulation = d3
+    if (clickedNode) {
+        showNodeDetails(clickedNode);
+    }
+};
+
+const hasConnections = (nodeId, links) => {
+    return links.some(
+        (link) =>
+            link.source === nodeId ||
+            link.target === nodeId ||
+            (typeof link.source === "object" && link.source.id === nodeId) ||
+            (typeof link.target === "object" && link.target.id === nodeId)
+    );
+};
+
+const getClusterX = () => {
+    return networkData && networkData.is_forward ? width - 80 : 80;
+};
+
+const getNodeX = (node) => {
+    if (node.isolated || !node.visible) {
+        return getClusterX();
+    }
+
+    if (networkData.is_forward) {
+        return width * (0.1 + (0.8 * node.group) / maxLayers);
+    } else {
+        return width * (0.9 - (0.8 * node.group) / maxLayers);
+    }
+};
+
+const loadData = () => {
+    networkData = JSON.parse(window.localStorage.getItem("scoping_data"));
+
+    maxLayers = Math.max(...networkData.nodes.map((n) => n.group));
+    visibleLayers = -1;
+
+    nodes = [];
+    updateButtons();
+    createNetwork();
+};
+
+const createNetwork = () => {
+    if (!networkData) return;
+
+    const clusterX = getClusterX();
+
+    if (nodes.length === 0) {
+        nodes = networkData.nodes.map((d, index) => {
+            return {
+                ...d,
+                x: clusterX + (Math.random() - 0.5) * 60,
+                y: height / 2 + (Math.random() - 0.5) * height * 0.6,
+                visible: d.group <= visibleLayers,
+                isolated: !hasConnections(d.id, networkData.links),
+            };
+        });
+    } else {
+        nodes.forEach((node) => {
+            node.visible = node.group <= visibleLayers;
+            node.isolated = !hasConnections(node.id, networkData.links);
+        });
+    }
+
+    links = networkData.links.map((d) => ({
+        source: nodes.find((n) => n.id === d.source),
+        target: nodes.find((n) => n.id === d.target),
+    }));
+
+    if (simulation) simulation.stop();
+
+    simulation = d3
         .forceSimulation(nodes)
         .force(
             "link",
             d3
                 .forceLink(links)
                 .id((d) => d.id)
-                .distance(100)
+                .strength((d) => {
+                    return d.source.visible && d.target.visible ? 0.6 : 0.1;
+                })
+                .distance((d) => {
+                    return d.source.visible && d.target.visible ? 80 : 20;
+                })
         )
-        .force("charge", d3.forceManyBody().strength(-100))
-        .force("center", d3.forceCenter(width / 2, height / 2))
-        .force("x", d3.forceX((d) => xPositionScale(d.group)).strength(1))
-        .force("y", d3.forceY(height / 2).strength(0.1))
-        .force("collision", d3.forceCollide(25))
-        .on("tick", ticked);
-
-    const svg = d3
-        .create("svg")
-        .attr("width", width)
-        .attr("height", height)
-        .attr("viewBox", [0, 0, width, height])
-        .attr("style", "max-width: 100%; height: auto; background: #e5e5e5")
-        .attr("id", "networkDiv");
-
-    svg.append("defs")
-        .append("marker")
-        .attr("id", "arrowhead")
-        .attr("viewBox", "0 -5 10 10")
-        .attr("refX", 20)
-        .attr("refY", 0)
-        .attr("markerWidth", 6)
-        .attr("markerHeight", 6)
-        .attr("orient", "auto")
-        .append("path")
-        .attr("d", "M0,-5L10,0L0,5")
-        .attr("fill", "#999");
-
-    const link = svg
-        .append("g")
-        .attr("stroke", "#999")
-        .attr("stroke-opacity", 0.6)
-        .selectAll()
-        .data(links)
-        .join("line")
-        .attr("stroke-width", (d) => Math.sqrt(d.value || 1))
-        .attr("marker-end", "url(#arrowhead)");
-
-    const node = svg
-        .append("g")
-        .selectAll()
-        .data(nodes)
-        .join("circle")
-        .attr("r", 20)
-        .attr("fill", (d) => "#fff")
-        .on("click", (e, d) => drawNodeDetails(d));
-
-    const label = svg
-        .append("g")
-        .attr("class", "labels")
-        .selectAll("text")
-        .data(nodes)
-        .join("text")
-        .attr("text-anchor", "middle")
-        .attr("font-size", 10)
-        .attr("dy", "0.3em")
-        .text((d) => d.id);
-
-    node.append("title").text((d) => d.id);
-
-    node.call(
-        d3
-            .drag()
-            .on("start", dragstarted)
-            .on("drag", dragged)
-            .on("end", dragended)
-    );
-
-    function ticked() {
-        // more init code
-        nodes.forEach((node) => {
-            if (node.visible) {
-                node.x = xPositionScale(node.group);
-            } else {
-                node.x = node.xPos;
-            }
-            node.y = Math.max(50, Math.min(height - 50, node.y));
-        });
-
-        // link starts at parent, ends at child
-        link.attr("x1", (d) => d.source.x)
-            .attr("y1", (d) => d.source.y)
-            .attr("x2", (d) => {
-                const dx = d.target.x - d.source.x;
-                const dy = d.target.y - d.source.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                return dist === 0 ? d.target.x : d.target.x - (dx * 14) / dist;
+        .force(
+            "charge",
+            d3.forceManyBody().strength((d) => {
+                return d.visible && !d.isolated ? -200 : -50;
             })
-            .attr("y2", (d) => {
-                const dx = d.target.x - d.source.x;
-                const dy = d.target.y - d.source.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                return dist === 0 ? d.target.y : d.target.y - (dy * 14) / dist;
+        )
+        .force(
+            "x",
+            d3
+                .forceX((d) => getNodeX(d))
+                .strength((d) => {
+                    if (d.isolated) return 3.0;
+                    return d.visible ? 2.5 : 2.0;
+                })
+        )
+        .force(
+            "y",
+            d3.forceY(height / 2).strength((d) => {
+                if (d.isolated) return 1.0;
+                return d.visible ? 0.1 : 0.8;
+            })
+        )
+        .force(
+            "collision",
+            d3.forceCollide((d) => {
+                if (d.isolated) return nodeRadius + 2;
+                return d.visible ? nodeRadius + 8 : nodeRadius + 1;
+            })
+        )
+        .force("sameLayerRepulsion", () => {
+            nodes.forEach((nodeA) => {
+                if (!nodeA.visible || nodeA.isolated) return;
+
+                nodes.forEach((nodeB) => {
+                    if (
+                        !nodeB.visible ||
+                        nodeB.isolated ||
+                        nodeA === nodeB ||
+                        nodeA.group !== nodeB.group
+                    )
+                        return;
+
+                    const dx = nodeB.x - nodeA.x;
+                    const dy = nodeB.y - nodeA.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    if (distance < 150) {
+                        const force = ((150 - distance) / distance) * 0.3;
+                        const fx = dx * force;
+                        const fy = dy * force;
+
+                        nodeA.vx -= fx;
+                        nodeA.vy -= fy;
+                        nodeB.vx += fx;
+                        nodeB.vy += fy;
+                    }
+                });
             });
+        })
+        .on("tick", drawNetwork);
 
-        node.attr("cx", (d) => d.x).attr("cy", (d) => d.y);
-        label.attr("x", (d) => d.x).attr("y", (d) => d.y - 30);
-    }
-
-    function dragstarted(event) {
-        if (!event.active) simulation.alphaTarget(0.3).restart();
-        event.subject.fx = event.subject.x;
-        event.subject.fy = event.subject.y;
-    }
-
-    function dragged(event) {
-        event.subject.fx = xPositionScale(event.subject.group);
-        event.subject.fy = event.y;
-    }
-
-    function dragended(event) {
-        if (!event.active) simulation.alphaTarget(0);
-        event.subject.fx = xPositionScale(event.subject.group);
-        event.subject.fy = null;
-    }
-
-    return svg.node();
+    simulation.alpha(0.8).restart();
 };
 
-const updateNetwork = (data) => {
-    // Updates the D3 graph whenever data is updated
+const drawNetwork = () => {
+    context.save();
+    context.clearRect(0, 0, width, height);
+    context.translate(transform.x, transform.y);
+    context.scale(transform.k, transform.k);
 
-    const width = 1000;
-    const height = 600;
-
-    const links = data.links.map((d) => ({ ...d }));
-    const nodes = data.nodes.map((d) => ({ ...d }));
-
-    // Gets nodes directly from DOM. Particularly interested in each of their x,y positions.
-    const currentNodes = {};
-    d3.select("#networkDiv")
-        .select("g:nth-of-type(2)")
-        .selectAll("circle")
-        .each(function (d) {
-            if (d && d.id) {
-                currentNodes[d.id] = {
-                    x: parseFloat(d3.select(this).attr("cx")),
-                    y: parseFloat(d3.select(this).attr("cy")),
-                };
-            }
-        });
-
-    let xPositionScale; // same thing as in `createNetwork`
-
-    if (data.is_forward) {
-        xPositionScale = d3
-            .scaleLinear()
-            .domain([
-                d3.min(nodes, (d) => d.group),
-                d3.max(nodes, (d) => d.group),
-            ])
-            .range([width * 0.2, width * 0.8]);
-    } else {
-        xPositionScale = d3
-            .scaleLinear()
-            .domain([
-                d3.max(nodes, (d) => d.group),
-                d3.min(nodes, (d) => d.group),
-            ])
-            .range([width * 0.2, width * 0.8]);
-    }
-
-    nodes.forEach((node) => {
-        // init code, useful for transitions (animations)
-        if (currentNodes[node.id]) {
-            node.oldX = currentNodes[node.id].x;
-            node.oldY = currentNodes[node.id].y;
-            node.y = currentNodes[node.id].y;
-        } else {
-            node.oldX = width / 2;
-            node.oldY = height / 2;
-            node.y = height / 2 + (Math.random() - 0.5) * height * 0.5;
+    context.beginPath();
+    context.strokeStyle = "#999";
+    context.lineWidth = 1.5;
+    links.forEach((link) => {
+        if (link.source.visible && link.target.visible) {
+            context.moveTo(link.source.x, link.source.y);
+            context.lineTo(link.target.x, link.target.y);
         }
+    });
+    context.stroke();
 
-        // if the node is currently visible (i.e. has links adjacent to it; already part of graph) then its x position should follow its group's assigned x position. Otherwise, stay on the leftmost/rightmost side (depending on whether it's currently backward/forward pass).
-        node.x = node.visible ? xPositionScale(node.group) : node.xPos;
+    context.fillStyle = "#666";
+    links.forEach((link) => {
+        if (link.source.visible && link.target.visible) {
+            drawArrowhead(context, link.source, link.target);
+        }
     });
 
-    const svg = d3.select("#networkDiv");
+    nodes.forEach((node) => {
+        context.beginPath();
+        context.arc(node.x, node.y, nodeRadius, 0, 2 * Math.PI);
 
-    const link = svg
-        .select("g:nth-of-type(1)")
-        .selectAll("line")
-        .data(
-            links,
-            (d) => `${d.source.id || d.source}-${d.target.id || d.target}`
-        );
-
-    link.exit().transition().duration(500).attr("stroke-opacity", 0).remove();
-
-    const linkEnter = link
-        .enter()
-        .append("line")
-        .attr("stroke", "#999")
-        .attr("stroke-opacity", 0)
-        .attr("stroke-width", (d) => Math.sqrt(d.value || 1))
-        .attr("marker-end", "url(#arrowhead)")
-        .attr("x1", (d) => d.source.oldX || width / 2)
-        .attr("y1", (d) => d.source.oldY || height / 2)
-        .attr("x2", (d) => d.target.oldX || width / 2)
-        .attr("y2", (d) => d.target.oldY || height / 2);
-
-    linkEnter
-        .merge(link)
-        .transition()
-        .duration(1000)
-        .attr("stroke-opacity", 0.6)
-        .attr("x1", (d) =>
-            typeof d.source === "object"
-                ? d.source.x
-                : nodes.find((n) => n.id === d.source).x
-        )
-        .attr("y1", (d) =>
-            typeof d.source === "object"
-                ? d.source.y
-                : nodes.find((n) => n.id === d.source).y
-        )
-        .attr("x2", (d) => {
-            const source =
-                typeof d.source === "object"
-                    ? d.source
-                    : nodes.find((n) => n.id === d.source);
-            const target =
-                typeof d.target === "object"
-                    ? d.target
-                    : nodes.find((n) => n.id === d.target);
-            const dx = target.x - source.x;
-            const dy = target.y - source.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            return dist === 0 ? target.x : target.x - (dx * 14) / dist;
-        })
-        .attr("y2", (d) => {
-            const source =
-                typeof d.source === "object"
-                    ? d.source
-                    : nodes.find((n) => n.id === d.source);
-            const target =
-                typeof d.target === "object"
-                    ? d.target
-                    : nodes.find((n) => n.id === d.target);
-            const dx = target.x - source.x;
-            const dy = target.y - source.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            return dist === 0 ? target.y : target.y - (dy * 14) / dist;
-        });
-
-    const node = svg
-        .select("g:nth-of-type(2)")
-        .selectAll("circle")
-        .data(nodes, (d) => d.id);
-
-    node.exit().transition().duration(500).attr("r", 0).remove();
-
-    const nodeEnter = node
-        .enter()
-        .append("circle")
-        .attr("r", 0)
-        .attr("fill", "#fff")
-        .attr("cx", (d) => d.oldX || 0)
-        .attr("cy", (d) => d.oldY || height / 2)
-        .on("click", (e, d) => drawNodeDetails(d));
-
-    nodeEnter.append("title").text((d) => d.id);
-
-    nodeEnter.call(
-        d3
-            .drag()
-            .on("start", dragstarted)
-            .on("drag", dragged)
-            .on("end", dragended)
-    );
-
-    nodeEnter
-        .merge(node)
-        .transition()
-        .duration(1000)
-        .attr("r", 20)
-        .attr("cx", (d) => d.x)
-        .attr("cy", (d) => d.y);
-
-    const label = svg
-        .select("g.labels")
-        .selectAll("text")
-        .data(nodes, (d) => d.id);
-
-    label.exit().transition().duration(500).attr("opacity", 0).remove();
-
-    const labelEnter = label
-        .enter()
-        .append("text")
-        .attr("text-anchor", "middle")
-        .attr("font-size", 10)
-        .attr("dy", "0.3em")
-        .attr("opacity", 0)
-        .attr("x", (d) => d.oldX || 0)
-        .attr("y", (d) => d.oldY - 30 || height / 2 - 30)
-        .text((d) => d.id);
-
-    labelEnter
-        .merge(label)
-        .transition()
-        .duration(1000)
-        .attr("opacity", 1)
-        .attr("x", (d) => d.x)
-        .attr("y", (d) => d.y - 30);
-
-    function dragstarted(event) {
-        if (!event.active) simulation.alphaTarget(0.3).restart();
-        event.subject.fx = event.subject.x;
-        event.subject.fy = event.subject.y;
-    }
-
-    function dragged(event) {
-        event.subject.fx = xPositionScale(event.subject.group);
-        event.subject.fy = event.y;
-    }
-
-    function dragended(event) {
-        if (!event.active) simulation.alphaTarget(0);
-        event.subject.fx = xPositionScale(event.subject.group);
-        event.subject.fy = null;
-    }
-};
-
-const nodeDetails = (node) => {
-    // Creates the details box onClick of a node
-
-    const width = 500;
-    const height = 215;
-
-    const svg = d3
-        .create("svg")
-        .attr("width", width)
-        .attr("height", height)
-        .attr("viewBox", [0, 0, width, height])
-        .attr("style", "max-width: 100%; height: auto; background: #fff;")
-        .attr("id", "nodeDetailsText");
-
-    const info = svg
-        .append("foreignObject")
-        .attr("width", 300)
-        .attr("height", 300)
-        .attr("x", (width - 300) / 2)
-        .attr("y", 0);
-
-    const div = info
-        .append("xhtml:div")
-        .style("background-color", "#efefef")
-        .style("border", "solid")
-        .style("border-width", "1px")
-        .style("border-radius", "5px")
-        .style("padding", "10px")
-        .style("width", 300)
-        .style("height", 300)
-        .html(
-            `<p>${node.id}</p><p>Preconditions:</p><p>${node.precondition.map(
-                (precond) =>
-                    `(${precond.split(" ")[0]},${precond.split(" ")[1]})`
-            )}</p><p>Effects:</p><p>${node.effect.map(
-                (eff) => `(${eff.split(" ")[0]},${eff.split(" ")[1]})`
-            )}</p>`
-        );
-
-    return svg.node();
-};
-
-const drawNodeDetails = (node) => {
-    // Actually attaches the nodeDetails element to the DOM
-    const elem = nodeDetails(node);
-    const container = document.getElementById("nodeDetails");
-    const nodeDetailsText = document.getElementById("nodeDetailsText");
-    if (nodeDetailsText) container.removeChild(nodeDetailsText);
-    container.append(elem);
-};
-
-const drawNetwork = ({ step_back }) => {
-    // Actually attaches the graph (network) element to the DOM
-    // Also reads localStorage and processes the graph data for rendering
-
-    const isNew = visible_layers === -1;
-
-    if (step_back) visible_layers--;
-    else visible_layers++;
-
-    if (visible_layers < -1) visible_layers = -1;
-
-    const data = JSON.parse(window.localStorage.getItem("scoping_data"));
-
-    const visible_nodes = data.nodes
-        .filter((n) => n.group <= visible_layers)
-        .map((n) => n.id);
-
-    data.links = data.links.filter(
-        (l) =>
-            visible_nodes.includes(l.source) && visible_nodes.includes(l.target)
-    );
-
-    for (let i = 0; i < data.nodes.length; i++) {
-        const name = data.nodes[i].id;
-        if (!visible_nodes.includes(name)) {
-            // if node currently not visible, set its x position to leftmost (if backward pass) or rightmost (if forward pass)
-            data.nodes[i].visible = false;
-            if (data.is_forward) data.nodes[i].xPos = 970;
-            else data.nodes[i].xPos = 30;
+        if (node.visible && !node.isolated) {
+            context.fillStyle = getNodeColor(node.group);
+            context.globalAlpha = 1.0;
+        } else if (node.isolated) {
+            context.fillStyle = "#888";
+            context.globalAlpha = node.visible ? 0.8 : 0.6;
         } else {
-            data.nodes[i].visible = true;
+            context.fillStyle = getNodeColor(node.group);
+            context.globalAlpha = 0.7;
         }
-    }
 
-    const container = document.getElementById("container");
-    const networkDiv = document.getElementById("networkDiv");
+        context.fill();
+        context.strokeStyle = node.visible ? "#333" : "#555";
+        context.lineWidth = node.visible ? 2 : 1.5;
+        context.stroke();
 
-    if (isNew && !networkDiv) container.append(createNetwork(data));
-    else updateNetwork(data);
+        context.globalAlpha = node.visible ? 1.0 : 0.8;
+        context.fillStyle = "#333";
+        context.font = "11px Arial";
+        context.textAlign = "center";
+        context.fillText(node.id, node.x, node.y - nodeRadius - 5);
+    });
+
+    context.globalAlpha = 1.0;
+    context.restore();
 };
 
-let visible_layers = -1;
-document.getElementById("visualize").onclick = () =>
-    drawNetwork({ step_back: false });
-document.getElementById("visualize_back").onclick = () =>
-    drawNetwork({ step_back: true });
+const drawArrowhead = (context, source, target) => {
+    const dx = target.x - source.x;
+    const dy = target.y - source.y;
+    const angle = Math.atan2(dy, dx);
+    const length = Math.sqrt(dx * dx + dy * dy);
 
-document.getElementById("enable_forward_pass").onclick = () =>
-    (visible_layers = -1);
+    const arrowX = target.x - (dx * nodeRadius) / length;
+    const arrowY = target.y - (dy * nodeRadius) / length;
+
+    const arrowLength = 10;
+    const arrowWidth = 0.4;
+
+    context.beginPath();
+    context.moveTo(arrowX, arrowY);
+
+    if (networkData.is_forward) {
+        context.lineTo(
+            arrowX - arrowLength * Math.cos(angle - arrowWidth),
+            arrowY - arrowLength * Math.sin(angle - arrowWidth)
+        );
+        context.lineTo(
+            arrowX - arrowLength * Math.cos(angle + arrowWidth),
+            arrowY - arrowLength * Math.sin(angle + arrowWidth)
+        );
+    } else {
+        context.lineTo(
+            arrowX - arrowLength * Math.cos(angle - arrowWidth),
+            arrowY - arrowLength * Math.sin(angle - arrowWidth)
+        );
+        context.lineTo(
+            arrowX - arrowLength * Math.cos(angle + arrowWidth),
+            arrowY - arrowLength * Math.sin(angle + arrowWidth)
+        );
+    }
+
+    context.closePath();
+    context.fill();
+};
+
+const getNodeColor = (group) => {
+    const colors = [
+        "#ff6b6b",
+        "#4ecdc4",
+        "#45b7d1",
+        "#96ceb4",
+        "#feca57",
+        "#ff9ff3",
+        "#54a0ff",
+    ];
+    return colors[group % colors.length];
+};
+
+const stepForward = () => {
+    if (isLoad) {
+        loadData();
+        isLoad = false;
+    }
+
+    if (visibleLayers < maxLayers) {
+        visibleLayers++;
+
+        createNetwork();
+        updateButtons();
+    }
+};
+
+const stepBack = () => {
+    if (isLoad) {
+        loadData();
+        isLoad = false;
+    }
+
+    if (visibleLayers >= 0) {
+        visibleLayers--;
+
+        createNetwork();
+        updateButtons();
+    }
+};
+
+const updateButtons = () => {
+    document.getElementById("prev").disabled = visibleLayers < 0;
+    document.getElementById("next").disabled =
+        visibleLayers >= maxLayers || !networkData;
+};
+
+const showNodeDetails = (node) => {
+    const detailsDiv = document.getElementById("nodeDetails");
+    const preconditions = node.precondition
+        ? node.precondition.join(", ")
+        : "None";
+    const effects = node.effect ? node.effect.join(", ") : "None";
+
+    detailsDiv.innerHTML = `
+                <h3>Node Details</h3>
+                <h4>${node.id}</h4>
+                <p><strong>Preconditions:</strong><br>${preconditions}</p>
+                <p><strong>Effects:</strong><br>${effects || "None"}</p>
+            `;
+};
+
+const load = () => {
+    init();
+    updateButtons();
+    loadData();
+    isLoad = false;
+
+    document.getElementById("start").style.display = "none";
+    document.getElementById("next").style.display = "flex";
+    document.getElementById("prev").style.display = "flex";
+};
