@@ -19,8 +19,8 @@ ENABLE_MERGING = document["enable_merging"]
 ENABLE_FACT_BASED = document["enable_fact_based"]
 ENABLE_FORWARD_PASS = document["enable_forward_pass"]
 ENABLE_LOOP = document["enable_loop"]
-VISUALIZE = document["visualize"]
-VISUALIZE_BACK = document["visualize_back"]
+NEXT_BTN = document["next"]
+PREV_BTN = document["prev"]
 
 
 # Global objects (remember to access these with the `global` keyword in functions)
@@ -37,14 +37,6 @@ layer_count = 0 # actual/total number of layers in the graph
 visible_layers = 1 # number of layers currently in the graph (nodes that are bunched up on the left/right without any links adjacent to them are not considered) -- lines up with the number of "visualize"-"visualize back" button clicks
 
 
-def main():
-    set_toggle_content(ENABLE_CAUSAL_LINKS, scoping_options.enable_causal_links)
-    set_toggle_content(ENABLE_MERGING, scoping_options.enable_merging)
-    set_toggle_content(ENABLE_FACT_BASED, scoping_options.enable_fact_based)
-    set_toggle_content(ENABLE_FORWARD_PASS, scoping_options.enable_forward_pass)
-    set_toggle_content(ENABLE_LOOP, scoping_options.enable_loop)
-
-
 def visualize(step_back=False):
     global graph
     global layer_count
@@ -59,14 +51,14 @@ def visualize(step_back=False):
         visible_layers -= 2
 
     if visible_layers <= 1:
-        VISUALIZE_BACK.disabled = True # toggle the `disabled` attribute of this button in the DOM to `true`
+        PREV_BTN.disabled = True # toggle the `disabled` attribute of this button in the DOM to `true`
     else:
-        VISUALIZE_BACK.disabled = False
+        PREV_BTN.disabled = False
 
     if visible_layers >= layer_count:
-        VISUALIZE.disabled = True
+        NEXT_BTN.disabled = True
     else:
-        VISUALIZE.disabled = False
+        NEXT_BTN.disabled = False
 
     visible_layers += 1
 
@@ -86,7 +78,7 @@ def file_read(ev):
         scoped_task.to_sas().output(f)
         document['sas_content'].value = f.getvalue() # saves scoped task SAS to the DOM (for downloading purposes, can also be displayed in the DOM)
 
-        VISUALIZE.disabled = False
+        NEXT_BTN.disabled = False
 
     file = UPLOAD_BTN.files[0]
     reader = window.FileReader.new()
@@ -140,62 +132,47 @@ def mousedown(ev):
 @bind(ENABLE_CAUSAL_LINKS, "click")
 def toggle_causal_links(ev):
     scoping_options.enable_causal_links = not scoping_options.enable_causal_links
-    set_toggle_content(ENABLE_CAUSAL_LINKS, scoping_options.enable_causal_links)
     update_sas()
-    VISUALIZE.disabled = False
+    NEXT_BTN.disabled = False
 
 
 @bind(ENABLE_MERGING, "click")
 def toggle_merging(ev):
     scoping_options.enable_merging = not scoping_options.enable_merging
-    set_toggle_content(ENABLE_MERGING, scoping_options.enable_merging)
     update_sas()
-    VISUALIZE.disabled = False
+    NEXT_BTN.disabled = False
 
 
 @bind(ENABLE_FACT_BASED, "click")
 def toggle_fact_based(ev):
     scoping_options.enable_fact_based = not scoping_options.enable_fact_based
-    set_toggle_content(ENABLE_FACT_BASED, scoping_options.enable_fact_based)
     update_sas()
-    VISUALIZE.disabled = False
+    NEXT_BTN.disabled = False
 
 
 @bind(ENABLE_FORWARD_PASS, "click")
 def toggle_forward_pass(ev):
+    print("pressed")
     scoping_options.enable_forward_pass = not scoping_options.enable_forward_pass
-    set_toggle_content(ENABLE_FORWARD_PASS, scoping_options.enable_forward_pass)
     update_sas()
-    VISUALIZE.disabled = False
+    NEXT_BTN.disabled = False
 
 
 @bind(ENABLE_LOOP, "click")
 def toggle_loop(ev):
     scoping_options.enable_loop = not scoping_options.enable_loop
-    set_toggle_content(ENABLE_LOOP, scoping_options.enable_loop)
     update_sas()
-    VISUALIZE.disabled = False
+    NEXT_BTN.disabled = False
 
 
-@bind(VISUALIZE, "click")
+@bind(NEXT_BTN, "click")
 def run_visualize(ev):
     visualize()
-    if VISUALIZE.textContent == "Visualize":
-        # so that this runs only once
-        VISUALIZE.textContent = ">"
-        VISUALIZE_BACK.textContent = "<"
-        VISUALIZE_BACK.hidden = False
 
 
-@bind(VISUALIZE_BACK, "click")
+@bind(PREV_BTN, "click")
 def run_visualize_backwards(ev):
     visualize(step_back=True)
-
-
-def set_toggle_content(btn, flag):
-    # Just frontend stuff. Controls what is rendered as the button text whenever that button is clicked.
-    opt = " ".join(btn.textContent.split()[1:])
-    btn.textContent = f"Disable {opt}" if flag else f"Enable {opt}"
 
 
 def write_json(layers):

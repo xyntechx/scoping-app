@@ -1,4 +1,3 @@
-// Global variables
 let simulation;
 let canvas, context;
 let networkData = null;
@@ -7,32 +6,28 @@ let maxLayers = 0;
 let nodes = [];
 let links = [];
 let transform = d3.zoomIdentity;
+let isLoad = true;
 
 const width = 1000;
 const height = 600;
 const nodeRadius = 6;
 
-// Initialize
-function init() {
+const init = () => {
     canvas = d3.select("#networkCanvas");
     context = canvas.node().getContext("2d");
-
-    // Setup zoom and drag
     canvas.call(d3.zoom().scaleExtent([0.1, 4]).on("zoom", zoomed));
-
     canvas.on("click", handleCanvasClick);
-}
+};
 
-function zoomed(event) {
+const zoomed = (event) => {
     transform = event.transform;
     drawNetwork();
-}
+};
 
-function handleCanvasClick(event) {
+const handleCanvasClick = (event) => {
     const [mouseX, mouseY] = d3.pointer(event);
     const [x, y] = transform.invert([mouseX, mouseY]);
 
-    // Find clicked node (both visible and invisible nodes are clickable)
     const clickedNode = nodes.find((node) => {
         const dx = x - node.x;
         const dy = y - node.y;
@@ -42,10 +37,9 @@ function handleCanvasClick(event) {
     if (clickedNode) {
         showNodeDetails(clickedNode);
     }
-}
+};
 
-// Helper function to check if a node has any connections
-function hasConnections(nodeId, links) {
+const hasConnections = (nodeId, links) => {
     return links.some(
         (link) =>
             link.source === nodeId ||
@@ -53,80 +47,63 @@ function hasConnections(nodeId, links) {
             (typeof link.source === "object" && link.source.id === nodeId) ||
             (typeof link.target === "object" && link.target.id === nodeId)
     );
-}
+};
 
-// Helper function to get cluster position based on direction
-function getClusterX() {
-    return networkData && networkData.is_forward ? width - 80 : 80; // Right side for forward, left side for backward
-}
+const getClusterX = () => {
+    console.log(networkData.is_forward);
+    return networkData && networkData.is_forward ? width - 80 : 80;
+};
 
-// Helper function to get node X position based on direction and layer
-function getNodeX(node) {
+const getNodeX = (node) => {
     if (node.isolated || !node.visible) {
         return getClusterX();
     }
 
     if (networkData.is_forward) {
-        // Forward: root nodes (layer 0) on left, higher layers to the right
         return width * (0.1 + (0.8 * node.group) / maxLayers);
     } else {
-        // Backward: root nodes (layer 0) on right, higher layers to the left
         return width * (0.9 - (0.8 * node.group) / maxLayers);
     }
-}
+};
 
-function loadData() {
+const loadData = () => {
     networkData = JSON.parse(window.localStorage.getItem("scoping_data"));
 
     maxLayers = Math.max(...networkData.nodes.map((n) => n.group));
     visibleLayers = -1;
 
-    // Reset nodes array to trigger initialization
     nodes = [];
-
     updateButtons();
-    updateLayerStatus();
-
-    // Initialize the network
     createNetwork();
-}
+};
 
-function createNetwork() {
+const createNetwork = () => {
     if (!networkData) return;
 
     const clusterX = getClusterX();
 
-    // If this is the first time, initialize nodes with positions
     if (nodes.length === 0) {
         nodes = networkData.nodes.map((d, index) => {
-            // Check if this node has any connections
-            const isIsolated = !hasConnections(d.id, networkData.links);
-
-            // Start all nodes in the cluster
             return {
                 ...d,
                 x: clusterX + (Math.random() - 0.5) * 60,
                 y: height / 2 + (Math.random() - 0.5) * height * 0.6,
                 visible: d.group <= visibleLayers,
-                isolated: isIsolated, // Mark nodes that have no connections
+                isolated: !hasConnections(d.id, networkData.links),
             };
         });
     } else {
-        // Update visibility status for existing nodes
         nodes.forEach((node) => {
             node.visible = node.group <= visibleLayers;
-            // Update isolation status in case data changed
             node.isolated = !hasConnections(node.id, networkData.links);
         });
     }
 
-    // Create links between all nodes (including invisible ones)
     links = networkData.links.map((d) => ({
         source: nodes.find((n) => n.id === d.source),
         target: nodes.find((n) => n.id === d.target),
     }));
 
-    // Create simulation with all nodes
     if (simulation) simulation.stop();
 
     simulation = d3
@@ -137,18 +114,15 @@ function createNetwork() {
                 .forceLink(links)
                 .id((d) => d.id)
                 .strength((d) => {
-                    // Weaker links for invisible nodes
                     return d.source.visible && d.target.visible ? 0.6 : 0.1;
                 })
                 .distance((d) => {
-                    // Shorter distances for invisible nodes
                     return d.source.visible && d.target.visible ? 80 : 20;
                 })
         )
         .force(
             "charge",
             d3.forceManyBody().strength((d) => {
-                // Weaker repulsion for invisible or isolated nodes
                 return d.visible && !d.isolated ? -200 : -50;
             })
         )
@@ -157,7 +131,6 @@ function createNetwork() {
             d3
                 .forceX((d) => getNodeX(d))
                 .strength((d) => {
-                    // Strong positioning for isolated nodes to keep them clustered
                     if (d.isolated) return 3.0;
                     return d.visible ? 2.5 : 2.0;
                 })
@@ -165,23 +138,18 @@ function createNetwork() {
         .force(
             "y",
             d3.forceY(height / 2).strength((d) => {
-                // Stronger vertical centering for isolated nodes
                 if (d.isolated) return 1.0;
-                // Weaker vertical centering for visible connected nodes to allow spreading
                 return d.visible ? 0.1 : 0.8;
             })
         )
         .force(
             "collision",
             d3.forceCollide((d) => {
-                // Smaller collision radius for isolated nodes to pack them tighter
                 if (d.isolated) return nodeRadius + 2;
-                // Larger collision radius for connected nodes for better spacing
                 return d.visible ? nodeRadius + 8 : nodeRadius + 1;
             })
         )
         .force("sameLayerRepulsion", () => {
-            // Custom force for same-layer node repulsion (only for connected nodes)
             nodes.forEach((nodeA) => {
                 if (!nodeA.visible || nodeA.isolated) return;
 
@@ -199,7 +167,6 @@ function createNetwork() {
                     const distance = Math.sqrt(dx * dx + dy * dy);
 
                     if (distance < 150) {
-                        // Apply repulsion within 150px
                         const force = ((150 - distance) / distance) * 0.3;
                         const fx = dx * force;
                         const fy = dy * force;
@@ -214,17 +181,15 @@ function createNetwork() {
         })
         .on("tick", drawNetwork);
 
-    // Restart the simulation with higher alpha for smooth transitions
     simulation.alpha(0.8).restart();
-}
+};
 
-function drawNetwork() {
+const drawNetwork = () => {
     context.save();
     context.clearRect(0, 0, width, height);
     context.translate(transform.x, transform.y);
     context.scale(transform.k, transform.k);
 
-    // Draw links (only between visible nodes)
     context.beginPath();
     context.strokeStyle = "#999";
     context.lineWidth = 1.5;
@@ -236,7 +201,6 @@ function drawNetwork() {
     });
     context.stroke();
 
-    // Draw arrowheads (only for visible links)
     context.fillStyle = "#666";
     links.forEach((link) => {
         if (link.source.visible && link.target.visible) {
@@ -244,22 +208,17 @@ function drawNetwork() {
         }
     });
 
-    // Draw all nodes (visible and invisible)
     nodes.forEach((node) => {
-        // Node circle
         context.beginPath();
         context.arc(node.x, node.y, nodeRadius, 0, 2 * Math.PI);
 
         if (node.visible && !node.isolated) {
-            // Visible connected nodes: full color and opacity
             context.fillStyle = getNodeColor(node.group);
             context.globalAlpha = 1.0;
         } else if (node.isolated) {
-            // Isolated nodes: slightly different styling
-            context.fillStyle = "#888"; // Gray color for isolated nodes
+            context.fillStyle = "#888";
             context.globalAlpha = node.visible ? 0.8 : 0.6;
         } else {
-            // Invisible nodes: same color but reduced opacity
             context.fillStyle = getNodeColor(node.group);
             context.globalAlpha = 0.7;
         }
@@ -269,7 +228,6 @@ function drawNetwork() {
         context.lineWidth = node.visible ? 2 : 1.5;
         context.stroke();
 
-        // Node label (for both visible and invisible nodes)
         context.globalAlpha = node.visible ? 1.0 : 0.8;
         context.fillStyle = "#333";
         context.font = "11px Arial";
@@ -277,17 +235,16 @@ function drawNetwork() {
         context.fillText(node.id, node.x, node.y - nodeRadius - 5);
     });
 
-    context.globalAlpha = 1.0; // Reset alpha
+    context.globalAlpha = 1.0;
     context.restore();
-}
+};
 
-function drawArrowhead(context, source, target) {
+const drawArrowhead = (context, source, target) => {
     const dx = target.x - source.x;
     const dy = target.y - source.y;
     const angle = Math.atan2(dy, dx);
     const length = Math.sqrt(dx * dx + dy * dy);
 
-    // Position arrowhead at edge of target node
     const arrowX = target.x - (dx * nodeRadius) / length;
     const arrowY = target.y - (dy * nodeRadius) / length;
 
@@ -298,7 +255,6 @@ function drawArrowhead(context, source, target) {
     context.moveTo(arrowX, arrowY);
 
     if (networkData.is_forward) {
-        // Forward direction: arrows point right (normal direction)
         context.lineTo(
             arrowX - arrowLength * Math.cos(angle - arrowWidth),
             arrowY - arrowLength * Math.sin(angle - arrowWidth)
@@ -308,7 +264,6 @@ function drawArrowhead(context, source, target) {
             arrowY - arrowLength * Math.sin(angle + arrowWidth)
         );
     } else {
-        // Backward direction: arrows point left (reversed)
         context.lineTo(
             arrowX - arrowLength * Math.cos(angle - arrowWidth),
             arrowY - arrowLength * Math.sin(angle - arrowWidth)
@@ -321,9 +276,9 @@ function drawArrowhead(context, source, target) {
 
     context.closePath();
     context.fill();
-}
+};
 
-function getNodeColor(group) {
+const getNodeColor = (group) => {
     const colors = [
         "#ff6b6b",
         "#4ecdc4",
@@ -334,60 +289,43 @@ function getNodeColor(group) {
         "#54a0ff",
     ];
     return colors[group % colors.length];
-}
+};
 
-function stepForward() {
+const stepForward = () => {
+    if (isLoad) {
+        loadData();
+        isLoad = false;
+    }
+
     if (visibleLayers < maxLayers) {
         visibleLayers++;
 
-        // Smoothly transition newly visible nodes
         createNetwork();
         updateButtons();
-        updateLayerStatus();
     }
-}
+};
 
-function stepBack() {
+const stepBack = () => {
+    if (isLoad) {
+        loadData();
+        isLoad = false;
+    }
+
     if (visibleLayers >= 0) {
         visibleLayers--;
 
-        // Smoothly transition nodes back to cluster
         createNetwork();
         updateButtons();
-        updateLayerStatus();
     }
-}
+};
 
-function updateButtons() {
-    document.getElementById("visualize_back").disabled = visibleLayers < 0;
-    document.getElementById("visualize").disabled =
+const updateButtons = () => {
+    document.getElementById("prev").disabled = visibleLayers < 0;
+    document.getElementById("next").disabled =
         visibleLayers >= maxLayers || !networkData;
-}
+};
 
-function updateLayerStatus() {
-    const status = document.getElementById("layerStatus");
-    if (!networkData) {
-        status.textContent = "No data loaded";
-        return;
-    }
-
-    const visibleNodes = nodes.filter((n) => n.visible).length;
-    const totalNodes = nodes.length;
-    const isolatedNodes = nodes.filter((n) => n.isolated).length;
-
-    status.innerHTML = `
-                <strong>Current Layer:</strong> ${visibleLayers + 1} / ${
-        maxLayers + 1
-    }<br>
-                <p><strong>Visible Nodes:</strong> ${visibleNodes} / ${totalNodes}</p>
-                <p><strong>Isolated Nodes:</strong> ${isolatedNodes}</p>
-                <p><strong>Direction:</strong> ${
-                    networkData.is_forward ? "Forward" : "Backward"
-                }</p>
-            `;
-}
-
-function showNodeDetails(node) {
+const showNodeDetails = (node) => {
     const detailsDiv = document.getElementById("nodeDetails");
     const preconditions = node.precondition
         ? node.precondition.join(", ")
@@ -399,10 +337,11 @@ function showNodeDetails(node) {
                 <p><strong>Preconditions:</strong><br>${preconditions}</p>
                 <p><strong>Effects:</strong><br>${effects || "None"}</p>
             `;
-}
+};
 
 const load = () => {
     init();
     updateButtons();
     loadData();
+    isLoad = false;
 };

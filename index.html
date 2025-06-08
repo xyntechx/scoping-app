@@ -24,7 +24,8 @@
             h5,
             h6,
             p,
-            a {
+            a,
+            label {
                 margin: 0;
                 padding: 0;
                 font-size: 0.8rem;
@@ -51,7 +52,7 @@
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                background-color: oklch(62.3% 0.214 259.815);
+                background-color: #2196f3;
                 color: white;
                 border: none;
                 padding: 0.5rem 1rem;
@@ -63,7 +64,7 @@
             }
 
             .btn:hover {
-                background-color: oklch(54.6% 0.245 262.881);
+                background-color: #2175f3;
             }
 
             .btn:disabled {
@@ -109,7 +110,7 @@
                 width: 100%;
                 margin-top: 0;
                 color: #333;
-                border-bottom: 1px solid #667eea;
+                border-bottom: 1px solid #2196f3;
             }
 
             .textContainer {
@@ -125,48 +126,99 @@
                 font-size: 0.8rem;
                 color: #666;
             }
+
+            input[type="file"] {
+                display: none;
+            }
+
+            .switchContainer {
+                all: unset;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                column-gap: 0.5rem;
+                font-size: 0.8rem;
+            }
+
+            .switch {
+                position: relative;
+                display: inline-block;
+                width: 50px;
+                height: 23px;
+            }
+
+            .switch input {
+                opacity: 0;
+                width: 0;
+                height: 0;
+            }
+
+            .slider {
+                position: absolute;
+                cursor: pointer;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background-color: #ccc;
+                -webkit-transition: 0.4s;
+                transition: 0.4s;
+            }
+
+            .slider:before {
+                position: absolute;
+                content: "";
+                height: 15px;
+                width: 15px;
+                left: 4px;
+                bottom: 4px;
+                background-color: white;
+                -webkit-transition: 0.4s;
+                transition: 0.4s;
+            }
+
+            input:checked + .slider {
+                background-color: #2196f3;
+            }
+
+            input:focus + .slider {
+                box-shadow: 0 0 1px #2196f3;
+            }
+
+            input:checked + .slider:before {
+                -webkit-transform: translateX(26px);
+                -ms-transform: translateX(26px);
+                transform: translateX(26px);
+            }
+
+            .slider.round {
+                border-radius: 20px;
+            }
+
+            .slider.round:before {
+                border-radius: 50%;
+            }
         </style>
     </head>
     <body onload="brython(1)">
         <script type="text/python">
             import main
-            main.main()
         </script>
         <script src="main.js"></script>
         <div class="container">
             <div class="controls">
+                <label for="upload_file" class="btn">Upload SAS</label>
                 <input
                     type="file"
                     id="upload_file"
-                    class="btn"
-                    onchange="load()"
+                    class="upload"
                     accept=".sas"
                 />
-                <button id="enable_causal_links" class="btn">
-                    Enable Causal Links
-                </button>
-                <button id="enable_merging" class="btn">Enable Merging</button>
-                <button id="enable_fact_based" class="btn">
-                    Disable Fact-based
-                </button>
-                <button id="enable_forward_pass" class="btn">
-                    Enable Forward Pass
-                </button>
-                <button id="enable_loop" class="btn">Enable Loop</button>
-                <button
-                    class="btn"
-                    id="visualize_back"
-                    onclick="stepBack()"
-                    disabled
-                >
+                <button id="load" onclick="load()" class="btn">Load</button>
+                <button id="prev" onclick="stepBack()" disabled class="btn">
                     &larr;
                 </button>
-                <button
-                    class="btn"
-                    id="visualize"
-                    onclick="stepForward()"
-                    disabled
-                >
+                <button id="next" onclick="stepForward()" disabled class="btn">
                     &rarr;
                 </button>
                 <a id="download_file" href="#" download class="btn">
@@ -192,9 +244,49 @@
                 </div>
                 <div class="details-panel">
                     <div class="textContainer">
-                        <h3>Layer Information</h3>
-                        <div class="grayText" id="layerStatus">
-                            No data loaded
+                        <h3>Scoping Options</h3>
+                        <div class="switchContainer">
+                            <label id="enable_causal_links" class="switch">
+                                <input type="checkbox" />
+                                <span class="slider round"></span>
+                            </label>
+                            <p>Causal Links</p>
+                        </div>
+
+                        <div class="switchContainer">
+                            <label id="enable_merging" class="switch">
+                                <input type="checkbox" />
+                                <span class="slider round"></span>
+                            </label>
+                            <p>Merging</p>
+                        </div>
+
+                        <div class="switchContainer">
+                            <label id="enable_fact_based" class="switch">
+                                <input type="checkbox" checked />
+                                <span class="slider round"></span>
+                            </label>
+                            <p>Fact-based</p>
+                        </div>
+
+                        <div class="switchContainer">
+                            <label
+                                
+                                class="switch"
+                                onclick="isLoad = true"
+                            >
+                                <input type="checkbox" id="enable_forward_pass" />
+                                <span class="slider round"></span>
+                            </label>
+                            <p>Forward Pass</p>
+                        </div>
+
+                        <div class="switchContainer">
+                            <label id="enable_loop" class="switch">
+                                <input type="checkbox" />
+                                <span class="slider round"></span>
+                            </label>
+                            <p>Loop</p>
                         </div>
                     </div>
                     <div class="textContainer">
